@@ -1,0 +1,46 @@
+{
+  "name": "backend-max",
+  "version": "1.0.0",
+  "description": "The AI-powered backend diagnostic MCP that understands what you're building and makes sure it actually works.",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "backend-max": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/server.js",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "backend",
+    "diagnostic",
+    "api-audit",
+    "nextjs",
+    "typescript",
+    "static-analysis",
+    "contract-testing",
+    "api-documentation"
+  ],
+  "author": "Rishi Kolisetty",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ts-morph": "^27.0.2",
+    "glob": "^11.0.0",
+    "zod": "^3.24.0",
+    "chalk": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
