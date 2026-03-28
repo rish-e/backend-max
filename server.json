@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rish-e/backend-max",
+  "description": "AI-powered backend diagnostics for Claude Code. Scans routes, verifies frontend-backend contracts, audits security/performance/error handling, traces types across layers, visualizes middleware chains, and generates fix patches. Supports Next.js, Express, Fastify, Hono, tRPC, and GraphQL.",
+  "title": "Backend Max",
+  "version": "2.2.0",
+  "websiteUrl": "https://github.com/rish-e/BackendMax",
+  "repository": {
+    "url": "https://github.com/rish-e/BackendMax",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "backend-max",
+      "version": "2.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": []
+    }
+  ]
+}
