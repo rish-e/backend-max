@@ -15,10 +15,10 @@
  */
 
 import { resolve } from "node:path";
-import { runFullDiagnosis } from "./tools/orchestrator.js";
-import { formatTextReport } from "./formatters/text.js";
 import { formatMarkdownReport } from "./formatters/markdown.js";
 import { formatSarifReport } from "./formatters/sarif.js";
+import { formatTextReport } from "./formatters/text.js";
+import { runFullDiagnosis } from "./tools/orchestrator.js";
 import type { DiagnosisReport, Severity } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ function parseArgs(argv: string[]): CliOptions {
         const val = args[++i];
         if (val !== undefined) {
           const parsed = parseInt(val, 10);
-          if (!isNaN(parsed)) {
+          if (!Number.isNaN(parsed)) {
             options.minScore = parsed;
           }
         }
@@ -102,12 +102,7 @@ function parseArgs(argv: string[]): CliOptions {
           process.exit(1);
         }
         const val = args[++i];
-        if (
-          val === "critical" ||
-          val === "warning" ||
-          val === "info" ||
-          val === "bug"
-        ) {
+        if (val === "critical" || val === "warning" || val === "info" || val === "bug") {
           options.failOn = val as Severity;
         }
         break;
@@ -133,16 +128,17 @@ function parseArgs(argv: string[]): CliOptions {
           process.exit(1);
         }
         const val = args[++i];
-        if (
-          val === "text" ||
-          val === "json" ||
-          val === "markdown" ||
-          val === "sarif"
-        ) {
+        if (val === "text" || val === "json" || val === "markdown" || val === "sarif") {
           options.format = val;
         }
         break;
       }
+
+      case "--version":
+      case "-v":
+        console.log("backend-max 2.2.0");
+        process.exit(0);
+        break;
 
       case "--help":
       case "-h":
@@ -168,10 +164,7 @@ function parseArgs(argv: string[]): CliOptions {
 /**
  * Formats a report based on the selected output format.
  */
-function formatOutput(
-  report: DiagnosisReport,
-  format: CliOptions["format"],
-): string {
+function formatOutput(report: DiagnosisReport, format: CliOptions["format"]): string {
   switch (format) {
     case "json":
       return JSON.stringify(report, null, 2);
@@ -181,8 +174,6 @@ function formatOutput(
 
     case "sarif":
       return JSON.stringify(formatSarifReport(report), null, 2);
-
-    case "text":
     default:
       return formatTextReport(report);
   }
@@ -246,9 +237,7 @@ function summaryLine(report: DiagnosisReport): string {
   const critical = report.issues.filter(
     (i) => i.severity === "critical" || i.severity === "bug",
   ).length;
-  const warnings = report.issues.filter(
-    (i) => i.severity === "warning",
-  ).length;
+  const warnings = report.issues.filter((i) => i.severity === "warning").length;
   const info = report.issues.filter((i) => i.severity === "info").length;
 
   return `Backend Max: ${report.healthScore}/100 | ${critical} critical | ${warnings} warnings | ${info} info`;
@@ -276,6 +265,7 @@ Options:
   --focus <area>    Focus: all, routes, contracts, errors, env, security, performance
   --json            Shorthand for --format json
   --format <fmt>    Output format: text, json, markdown, sarif
+  -v, --version     Show version number
   -h, --help        Show this help message
 
 Examples:
@@ -298,10 +288,7 @@ async function main(): Promise<void> {
   // Default command is "diagnose"
   if (!options.command || options.command === "diagnose") {
     try {
-      const report = await runFullDiagnosis(
-        options.projectPath,
-        options.focus,
-      );
+      const report = await runFullDiagnosis(options.projectPath, options.focus);
 
       // Output the formatted report
       const output = formatOutput(report, options.format);
@@ -319,9 +306,7 @@ async function main(): Promise<void> {
         }
       }
     } catch (error) {
-      console.error(
-        `Diagnosis failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      console.error(`Diagnosis failed: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(2);
     }
   } else {

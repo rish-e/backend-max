@@ -5,15 +5,9 @@
 // detect dead endpoints, phantom calls, and method mismatches.
 // =============================================================================
 
-import type {
-  ContractResult,
-  ContractMismatch,
-  RouteInfo,
-  FrontendCall,
-  TypeFlowIssue,
-} from "../types.js";
-import { scanRoutes } from "./route-scanner.js";
 import { scanFrontendCalls, traceResponseUsage } from "../analyzers/frontend.js";
+import type { ContractMismatch, ContractResult, RouteInfo } from "../types.js";
+import { scanRoutes } from "./route-scanner.js";
 
 // ---------------------------------------------------------------------------
 // URL normalisation helpers
@@ -25,11 +19,12 @@ import { scanFrontendCalls, traceResponseUsage } from "../analyzers/frontend.js"
  * replaced with a canonical `:param` placeholder so both sides match.
  */
 function normalizeUrl(url: string): string {
-  let normalized = url
-    // Remove query strings and hashes
-    .replace(/[?#].*$/, "")
-    // Remove trailing slash (but keep root "/")
-    .replace(/\/+$/, "") || "/";
+  let normalized =
+    url
+      // Remove query strings and hashes
+      .replace(/[?#].*$/, "")
+      // Remove trailing slash (but keep root "/")
+      .replace(/\/+$/, "") || "/";
 
   // Replace Next.js dynamic params: [id], [slug], [...params]
   normalized = normalized.replace(/\[\.{3}(\w+)\]/g, ":$1");
@@ -66,10 +61,7 @@ function urlsMatch(a: string, b: string): boolean {
 /**
  * Find the backend route (if any) whose URL pattern matches a frontend call.
  */
-function findMatchingRoute(
-  normalizedFrontendUrl: string,
-  routes: RouteInfo[]
-): RouteInfo | null {
+function findMatchingRoute(normalizedFrontendUrl: string, routes: RouteInfo[]): RouteInfo | null {
   for (const route of routes) {
     if (urlsMatch(normalizedFrontendUrl, normalizeUrl(route.url))) {
       return route;
@@ -96,9 +88,7 @@ function findMatchingRoute(
  * @param projectPath Absolute path to the project root.
  * @returns A `ContractResult` with all detected mismatches and summary counts.
  */
-export async function checkContracts(
-  projectPath: string
-): Promise<ContractResult> {
+export async function checkContracts(projectPath: string): Promise<ContractResult> {
   const mismatches: ContractMismatch[] = [];
   let matchedCount = 0;
 
@@ -133,9 +123,7 @@ export async function checkContracts(
     referencedRoutes.add(matchingRoute.filePath);
 
     // Check method match.
-    const backendMethods = matchingRoute.methods.map((m) =>
-      m.method.toUpperCase()
-    );
+    const backendMethods = matchingRoute.methods.map((m) => m.method.toUpperCase());
     const frontendMethod = call.method.toUpperCase();
 
     if (!backendMethods.includes(frontendMethod)) {
@@ -195,7 +183,12 @@ export async function checkContracts(
         severity: "info",
       });
     }
-  } catch { /* skip: type flow analysis failure (non-fatal) */ }
+  } catch (e) {
+    console.error(
+      "[contract-checker] Type flow analysis skipped:",
+      e instanceof Error ? e.message : e,
+    );
+  }
 
   return {
     mismatches,
@@ -212,10 +205,7 @@ export async function checkContracts(
  * Find the route with the most similar URL to the given path (for helpful
  * error messages). Uses a simple segment-overlap heuristic.
  */
-function findClosestRoute(
-  normalizedUrl: string,
-  routes: RouteInfo[]
-): RouteInfo | null {
+function findClosestRoute(normalizedUrl: string, routes: RouteInfo[]): RouteInfo | null {
   if (routes.length === 0) return null;
 
   const targetParts = normalizedUrl.split("/");

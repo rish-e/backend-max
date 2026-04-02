@@ -36,9 +36,7 @@ export interface VersioningAuditResult {
 /**
  * Detects API versioning patterns and audits for consistency.
  */
-export async function auditApiVersioning(
-  projectPath: string,
-): Promise<VersioningAuditResult> {
+export async function auditApiVersioning(projectPath: string): Promise<VersioningAuditResult> {
   const timestamp = getTimestamp();
   const issues: Issue[] = [];
 
@@ -47,7 +45,8 @@ export async function auditApiVersioning(
   try {
     const scanResult = await scanRoutes(projectPath);
     routes = scanResult.routes;
-  } catch { /* skip: route scan failure */
+  } catch {
+    /* skip: route scan failure */
     return {
       issues: [],
       summary: "Could not scan routes for versioning analysis.",
@@ -81,7 +80,9 @@ export async function auditApiVersioning(
 
     for (const [version, urls] of Object.entries(versionedRoutes)) {
       const normalizedRoutes = new Set(
-        urls.map((url) => url.replace(new RegExp(`^/(?:api/)?${version}/`), "/").replace(/^\/api\//, "/")),
+        urls.map((url) =>
+          url.replace(new RegExp(`^/(?:api/)?${version}/`), "/").replace(/^\/api\//, "/"),
+        ),
       );
       routesByVersion.set(version, normalizedRoutes);
     }
@@ -109,7 +110,8 @@ export async function auditApiVersioning(
     // Generate issues for version gaps
     for (const gap of versionGaps) {
       const latestVersion = versions[versions.length - 1];
-      const isNewInLatest = gap.presentIn.includes(latestVersion) && gap.missingFrom.every((v) => v !== latestVersion);
+      const isNewInLatest =
+        gap.presentIn.includes(latestVersion) && gap.missingFrom.every((v) => v !== latestVersion);
 
       if (!isNewInLatest) {
         // Route was removed in newer version — might be intentional deprecation
@@ -195,9 +197,10 @@ export async function auditApiVersioning(
     });
   }
 
-  const summary = strategy === "none"
-    ? `No API versioning detected across ${routes.length} routes.`
-    : `${strategy}-based versioning: ${versions.join(", ")}. ${versionGaps.length} version gap(s). ${issues.length} issue(s).`;
+  const summary =
+    strategy === "none"
+      ? `No API versioning detected across ${routes.length} routes.`
+      : `${strategy}-based versioning: ${versions.join(", ")}. ${versionGaps.length} version gap(s). ${issues.length} issue(s).`;
 
   return {
     issues,
@@ -215,7 +218,7 @@ export async function auditApiVersioning(
 
 async function detectVersioning(
   routes: RouteInfo[],
-  projectPath: string,
+  _projectPath: string,
 ): Promise<{
   strategy: VersioningAuditResult["strategy"];
   versions: string[];
@@ -251,10 +254,12 @@ async function detectVersioning(
   // (look for Accept header or X-API-Version header checks)
   // This is a heuristic — we check if any route file references version headers
   let hasHeaderVersioning = false;
-  for (const route of routes) {
+  for (const _route of routes) {
     try {
       // We don't read files here to avoid perf issues — just check URL patterns
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Check a few route files for header-based patterns
@@ -266,7 +271,9 @@ async function detectVersioning(
         hasHeaderVersioning = true;
         break;
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   if (hasHeaderVersioning) {

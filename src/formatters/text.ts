@@ -32,26 +32,14 @@ export function formatTextReport(report: DiagnosisReport): string {
 
   // Health score
   const scoreColor = getScoreColor(report.healthScore);
-  lines.push(
-    `  Health Score: ${scoreColor(
-      `${report.healthScore}/100`,
-    )}`,
-  );
-  lines.push(
-    `  Timestamp:    ${chalk.dim(report.timestamp)}`,
-  );
-  lines.push(
-    `  Framework:    ${chalk.cyan(report.context.framework)}`,
-  );
-  lines.push(
-    `  Routes:       ${report.routeCount} files, ${report.endpointCount} endpoints`,
-  );
+  lines.push(`  Health Score: ${scoreColor(`${report.healthScore}/100`)}`);
+  lines.push(`  Timestamp:    ${chalk.dim(report.timestamp)}`);
+  lines.push(`  Framework:    ${chalk.cyan(report.context.framework)}`);
+  lines.push(`  Routes:       ${report.routeCount} files, ${report.endpointCount} endpoints`);
   lines.push("");
 
   // Issues by severity
-  const critical = report.issues.filter(
-    (i) => i.severity === "critical" || i.severity === "bug",
-  );
+  const critical = report.issues.filter((i) => i.severity === "critical" || i.severity === "bug");
   const warnings = report.issues.filter((i) => i.severity === "warning");
   const info = report.issues.filter((i) => i.severity === "info");
 
@@ -80,35 +68,25 @@ export function formatTextReport(report: DiagnosisReport): string {
   }
 
   if (report.issues.length === 0) {
-    lines.push(
-      `  ${"\uD83D\uDFE2"} ${chalk.green("No issues found — looking good!")}`,
-    );
+    lines.push(`  ${"\uD83D\uDFE2"} ${chalk.green("No issues found — looking good!")}`);
     lines.push("");
   }
 
   // Contract analysis
   if (report.contractResult) {
     lines.push(sectionHeader("Contract Analysis"));
-    lines.push(
-      `  Matched:   ${chalk.green(String(report.contractResult.matchedCount))}`,
-    );
-    lines.push(
-      `  Unmatched: ${chalk.red(String(report.contractResult.unmatchedCount))}`,
-    );
+    lines.push(`  Matched:   ${chalk.green(String(report.contractResult.matchedCount))}`);
+    lines.push(`  Unmatched: ${chalk.red(String(report.contractResult.unmatchedCount))}`);
     lines.push("");
   }
 
   // Summary bar
+  lines.push(chalk.dim(BOX.horizontal.repeat(60)));
   lines.push(
-    chalk.dim(
-      BOX.horizontal.repeat(60),
-    ),
-  );
-  lines.push(
-    `  Backend Max: ${scoreColor(String(report.healthScore) + "/100")} | ` +
-      `${chalk.red(critical.length + " critical")} | ` +
-      `${chalk.yellow(warnings.length + " warnings")} | ` +
-      `${chalk.blue(info.length + " info")}`,
+    `  Backend Max: ${scoreColor(`${String(report.healthScore)}/100`)} | ` +
+      `${chalk.red(`${critical.length} critical`)} | ` +
+      `${chalk.yellow(`${warnings.length} warnings`)} | ` +
+      `${chalk.blue(`${info.length} info`)}`,
   );
   lines.push("");
 
@@ -135,22 +113,14 @@ function sectionHeader(title: string): string {
   const width = 60;
   const inner = width - 2;
   const padded = ` ${title} `.padEnd(inner, BOX.horizontal);
-  return chalk.dim(
-    `  ${BOX.topLeft}${BOX.horizontal}${padded}${BOX.topRight}`,
-  );
+  return chalk.dim(`  ${BOX.topLeft}${BOX.horizontal}${padded}${BOX.topRight}`);
 }
 
 /**
  * Formats a single issue line.
  */
-function formatIssue(
-  issue: Issue,
-  emoji: string,
-  color: ChalkInstance,
-): string {
-  const location = issue.line
-    ? `${issue.file}:${issue.line}`
-    : issue.file;
+function formatIssue(issue: Issue, emoji: string, color: ChalkInstance): string {
+  const location = issue.line ? `${issue.file}:${issue.line}` : issue.file;
   return [
     `  ${emoji} ${color(issue.title)}`,
     `     ${chalk.dim(issue.description)}`,

@@ -3,10 +3,9 @@
 // =============================================================================
 
 import { glob } from "glob";
-import { join } from "node:path";
-import { Project, SyntaxKind, Node } from "ts-morph";
-import { createProject } from "./typescript.js";
+import { Node, type Project, SyntaxKind } from "ts-morph";
 import type { FrontendCall, TypeFlowIssue } from "../types.js";
+import { createProject } from "./typescript.js";
 
 /**
  * Scans frontend code for fetch() and axios calls to API routes.
@@ -18,9 +17,7 @@ import type { FrontendCall, TypeFlowIssue } from "../types.js";
  * @param projectPath  Absolute path to the project root.
  * @returns            Array of FrontendCall objects.
  */
-export async function scanFrontendCalls(
-  projectPath: string,
-): Promise<FrontendCall[]> {
+export async function scanFrontendCalls(projectPath: string): Promise<FrontendCall[]> {
   const files = await glob("**/*.{ts,tsx}", {
     cwd: projectPath,
     absolute: true,
@@ -49,7 +46,9 @@ export async function scanFrontendCalls(
       const sourceFile = project.addSourceFileAtPath(filePath);
       const fileCalls = extractCallsFromFile(sourceFile, filePath);
       calls.push(...fileCalls);
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   return calls;
@@ -63,9 +62,7 @@ function extractCallsFromFile(
   filePath: string,
 ): FrontendCall[] {
   const calls: FrontendCall[] = [];
-  const callExpressions = sourceFile.getDescendantsOfKind(
-    SyntaxKind.CallExpression,
-  );
+  const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
 
   for (const callExpr of callExpressions) {
     try {
@@ -73,7 +70,9 @@ function extractCallsFromFile(
       if (result) {
         calls.push(result);
       }
-    } catch { /* skip: unparseable expression */ }
+    } catch {
+      /* skip: unparseable expression */
+    }
   }
 
   return calls;
@@ -90,10 +89,7 @@ function extractCallsFromFile(
  * - `axios("/api/...", { method: "POST" })`
  * - `$fetch`, `ofetch`, `ky`, `got` patterns
  */
-function parseCallExpression(
-  callExpr: Node,
-  filePath: string,
-): FrontendCall | null {
+function parseCallExpression(callExpr: Node, filePath: string): FrontendCall | null {
   if (!Node.isCallExpression(callExpr)) return null;
 
   const expression = callExpr.getExpression();
@@ -120,11 +116,7 @@ function parseCallExpression(
 
     if (/^(axios|api|http|client)$/i.test(obj)) {
       const httpMethod = methodName.toUpperCase();
-      if (
-        ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(
-          httpMethod,
-        )
-      ) {
+      if (["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(httpMethod)) {
         if (args.length === 0) return null;
         const url = extractUrlFromArg(args[0]);
         if (!url || !looksLikeApiUrl(url)) return null;
@@ -172,7 +164,7 @@ function extractUrlFromArg(arg: Node): string | null {
     const spans = arg.getTemplateSpans();
     let url = head;
     for (const span of spans) {
-      url += "*" + span.getLiteral().getLiteralText();
+      url += `*${span.getLiteral().getLiteralText()}`;
     }
     return url || null;
   }
@@ -207,9 +199,7 @@ function extractMethodFromOptions(optionsArg: Node): string {
 
   // Template literal or identifier — try text extraction
   const text = initializer.getText().replace(/["'`]/g, "").toUpperCase();
-  if (
-    ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(text)
-  ) {
+  if (["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"].includes(text)) {
     return text;
   }
 
@@ -302,21 +292,22 @@ export async function traceResponseUsage(
       let sourceFile;
       try {
         sourceFile = project.addSourceFileAtPath(filePath);
-      } catch { /* skip: unreadable/unparseable file */
+      } catch {
+        /* skip: unreadable/unparseable file */
         continue;
       }
 
       for (const call of calls) {
         try {
-          const callIssues = traceCallResponseUsage(
-            sourceFile,
-            call,
-            filePath,
-          );
+          const callIssues = traceCallResponseUsage(sourceFile, call, filePath);
           issues.push(...callIssues);
-        } catch { /* skip: individual call analysis failure */ }
+        } catch {
+          /* skip: individual call analysis failure */
+        }
       }
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   return issues;
@@ -341,9 +332,7 @@ function traceCallResponseUsage(
   const issues: TypeFlowIssue[] = [];
 
   // Find all variable declarations in the file
-  const variableDeclarations = sourceFile.getDescendantsOfKind(
-    SyntaxKind.VariableDeclaration,
-  );
+  const variableDeclarations = sourceFile.getDescendantsOfKind(SyntaxKind.VariableDeclaration);
 
   for (const varDecl of variableDeclarations) {
     const initializer = varDecl.getInitializer();
@@ -353,8 +342,7 @@ function traceCallResponseUsage(
 
     // Look for patterns like: await res.json(), await fetch(...).then(r => r.json())
     // We need to find the variable that holds the parsed JSON response
-    const isJsonCall =
-      initText.includes(".json()") || initText.includes(".json<");
+    const isJsonCall = initText.includes(".json()") || initText.includes(".json<");
 
     if (!isJsonCall) continue;
 
@@ -367,11 +355,7 @@ function traceCallResponseUsage(
     const dataVarName = varDecl.getName();
 
     // Find all property accesses on this variable
-    const propertyAccesses = findPropertyAccesses(
-      sourceFile,
-      dataVarName,
-      varLine,
-    );
+    const propertyAccesses = findPropertyAccesses(sourceFile, dataVarName, varLine);
 
     for (const propPath of propertyAccesses) {
       issues.push({
@@ -406,9 +390,7 @@ function findPropertyAccesses(
 ): string[] {
   const properties = new Set<string>();
 
-  const propertyAccessNodes = sourceFile.getDescendantsOfKind(
-    SyntaxKind.PropertyAccessExpression,
-  );
+  const propertyAccessNodes = sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression);
 
   for (const node of propertyAccessNodes) {
     // Only look at accesses after the variable declaration
@@ -420,7 +402,11 @@ function findPropertyAccesses(
     if (Node.isIdentifier(expression) && expression.getText() === variableName) {
       const propName = node.getName();
       // Skip common non-data methods
-      if (!["then", "catch", "finally", "json", "text", "blob", "ok", "status", "headers"].includes(propName)) {
+      if (
+        !["then", "catch", "finally", "json", "text", "blob", "ok", "status", "headers"].includes(
+          propName,
+        )
+      ) {
         properties.add(propName);
       }
     }

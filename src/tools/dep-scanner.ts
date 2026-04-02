@@ -2,9 +2,9 @@
 // backend-max — Dependency vulnerability scanner
 // =============================================================================
 
+import { execSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { execSync } from "node:child_process";
 import type { Issue } from "../types.js";
 import { getTimestamp } from "../utils/helpers.js";
 
@@ -41,47 +41,132 @@ interface DepEntry {
  */
 const KNOWN_VULNERABLE: Array<[string, (v: string) => boolean, Issue["severity"], string]> = [
   // Prototype pollution / RCE
-  ["lodash", (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 17) < 0), "critical",
-    "lodash < 4.17.x has multiple prototype pollution vulnerabilities (CVE-2020-8203, CVE-2021-23337)"],
-  ["minimist", (v) => compareMajor(v, 1) < 0, "warning",
-    "minimist < 1.x has prototype pollution vulnerability (CVE-2020-7598)"],
-  ["node-fetch", (v) => compareMajor(v, 2) < 0, "warning",
-    "node-fetch < 2.x has multiple security issues including URL redirect vulnerabilities"],
-  ["axios", (v) => compareMajor(v, 1) < 0, "warning",
-    "axios < 1.x has SSRF and ReDoS vulnerabilities. Upgrade to 1.x+"],
-  ["jsonwebtoken", (v) => compareMajor(v, 9) < 0, "critical",
-    "jsonwebtoken < 9.x has key confusion vulnerabilities (CVE-2022-23529, CVE-2022-23539, CVE-2022-23540, CVE-2022-23541)"],
-  ["express", (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 17) < 0), "warning",
-    "express < 4.17.x has multiple denial-of-service vulnerabilities"],
-  ["tar", (v) => compareMajor(v, 6) < 0 || (compareMajor(v, 6) === 0 && compareMinor(v, 2) < 0), "critical",
-    "tar < 6.2.x has arbitrary file creation/overwrite vulnerabilities (CVE-2021-32803, CVE-2021-32804)"],
-  ["glob-parent", (v) => compareMajor(v, 5) < 0 || (compareMajor(v, 5) === 0 && compareMinor(v, 1) < 0), "warning",
-    "glob-parent < 5.1.x has ReDoS vulnerability (CVE-2020-28469)"],
-  ["semver", (v) => compareMajor(v, 7) < 0 || (compareMajor(v, 7) === 0 && compareMinor(v, 5) < 0), "warning",
-    "semver < 7.5.x has ReDoS vulnerability (CVE-2022-25883)"],
-  ["xml2js", (v) => compareMajor(v, 0) === 0 && compareMinor(v, 5) < 0, "warning",
-    "xml2js < 0.5.x has prototype pollution vulnerability (CVE-2023-0842)"],
-  ["qs", (v) => compareMajor(v, 6) < 0 || (compareMajor(v, 6) === 0 && compareMinor(v, 5) < 0), "warning",
-    "qs < 6.5.x has prototype pollution vulnerability"],
-  ["tough-cookie", (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 1) < 0), "warning",
-    "tough-cookie < 4.1.x has prototype pollution vulnerability (CVE-2023-26136)"],
-  ["next", (v) => compareMajor(v, 13) < 0, "warning",
-    "Next.js < 13.x is no longer receiving security patches. Upgrade to 13+ or later"],
-  ["react", (v) => compareMajor(v, 18) < 0, "info",
-    "React < 18.x is outdated and missing important security improvements in server-side rendering"],
+  [
+    "lodash",
+    (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 17) < 0),
+    "critical",
+    "lodash < 4.17.x has multiple prototype pollution vulnerabilities (CVE-2020-8203, CVE-2021-23337)",
+  ],
+  [
+    "minimist",
+    (v) => compareMajor(v, 1) < 0,
+    "warning",
+    "minimist < 1.x has prototype pollution vulnerability (CVE-2020-7598)",
+  ],
+  [
+    "node-fetch",
+    (v) => compareMajor(v, 2) < 0,
+    "warning",
+    "node-fetch < 2.x has multiple security issues including URL redirect vulnerabilities",
+  ],
+  [
+    "axios",
+    (v) => compareMajor(v, 1) < 0,
+    "warning",
+    "axios < 1.x has SSRF and ReDoS vulnerabilities. Upgrade to 1.x+",
+  ],
+  [
+    "jsonwebtoken",
+    (v) => compareMajor(v, 9) < 0,
+    "critical",
+    "jsonwebtoken < 9.x has key confusion vulnerabilities (CVE-2022-23529, CVE-2022-23539, CVE-2022-23540, CVE-2022-23541)",
+  ],
+  [
+    "express",
+    (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 17) < 0),
+    "warning",
+    "express < 4.17.x has multiple denial-of-service vulnerabilities",
+  ],
+  [
+    "tar",
+    (v) => compareMajor(v, 6) < 0 || (compareMajor(v, 6) === 0 && compareMinor(v, 2) < 0),
+    "critical",
+    "tar < 6.2.x has arbitrary file creation/overwrite vulnerabilities (CVE-2021-32803, CVE-2021-32804)",
+  ],
+  [
+    "glob-parent",
+    (v) => compareMajor(v, 5) < 0 || (compareMajor(v, 5) === 0 && compareMinor(v, 1) < 0),
+    "warning",
+    "glob-parent < 5.1.x has ReDoS vulnerability (CVE-2020-28469)",
+  ],
+  [
+    "semver",
+    (v) => compareMajor(v, 7) < 0 || (compareMajor(v, 7) === 0 && compareMinor(v, 5) < 0),
+    "warning",
+    "semver < 7.5.x has ReDoS vulnerability (CVE-2022-25883)",
+  ],
+  [
+    "xml2js",
+    (v) => compareMajor(v, 0) === 0 && compareMinor(v, 5) < 0,
+    "warning",
+    "xml2js < 0.5.x has prototype pollution vulnerability (CVE-2023-0842)",
+  ],
+  [
+    "qs",
+    (v) => compareMajor(v, 6) < 0 || (compareMajor(v, 6) === 0 && compareMinor(v, 5) < 0),
+    "warning",
+    "qs < 6.5.x has prototype pollution vulnerability",
+  ],
+  [
+    "tough-cookie",
+    (v) => compareMajor(v, 4) < 0 || (compareMajor(v, 4) === 0 && compareMinor(v, 1) < 0),
+    "warning",
+    "tough-cookie < 4.1.x has prototype pollution vulnerability (CVE-2023-26136)",
+  ],
+  [
+    "next",
+    (v) => compareMajor(v, 13) < 0,
+    "warning",
+    "Next.js < 13.x is no longer receiving security patches. Upgrade to 13+ or later",
+  ],
+  [
+    "react",
+    (v) => compareMajor(v, 18) < 0,
+    "info",
+    "React < 18.x is outdated and missing important security improvements in server-side rendering",
+  ],
 ];
 
 /**
  * Packages that are commonly used but have better/safer alternatives.
  */
 const DEPRECATED_ALTERNATIVES: Array<[string, string | ((v: string) => string), string]> = [
-  ["request", "Use 'node-fetch', 'undici', or 'got' instead", "The 'request' package is deprecated and no longer maintained"],
-  ["querystring", "Use 'URLSearchParams' (built-in) instead", "Node.js built-in 'querystring' is legacy — use URLSearchParams"],
-  ["moment", "Use 'date-fns' or 'dayjs' instead", "moment.js is in maintenance mode and has known security issues with locale data"],
-  ["uuid", (v: string) => compareMajor(v, 9) < 0 ? "Upgrade to uuid@9+ or use crypto.randomUUID() (built-in)" : "", "uuid < 9.x generates predictable UUIDs in some environments"],
-  ["colors", "Remove or replace — this package was compromised", "The 'colors' package was intentionally corrupted in v1.4.1+ (supply chain attack)"],
-  ["faker", "Use '@faker-js/faker' instead", "The 'faker' package was intentionally corrupted — use the community fork @faker-js/faker"],
-  ["event-stream", "Audit carefully — this package had a supply chain attack", "event-stream was compromised to steal cryptocurrency (CVE-2018-16490)"],
+  [
+    "request",
+    "Use 'node-fetch', 'undici', or 'got' instead",
+    "The 'request' package is deprecated and no longer maintained",
+  ],
+  [
+    "querystring",
+    "Use 'URLSearchParams' (built-in) instead",
+    "Node.js built-in 'querystring' is legacy — use URLSearchParams",
+  ],
+  [
+    "moment",
+    "Use 'date-fns' or 'dayjs' instead",
+    "moment.js is in maintenance mode and has known security issues with locale data",
+  ],
+  [
+    "uuid",
+    (v: string) =>
+      compareMajor(v, 9) < 0 ? "Upgrade to uuid@9+ or use crypto.randomUUID() (built-in)" : "",
+    "uuid < 9.x generates predictable UUIDs in some environments",
+  ],
+  [
+    "colors",
+    "Remove or replace — this package was compromised",
+    "The 'colors' package was intentionally corrupted in v1.4.1+ (supply chain attack)",
+  ],
+  [
+    "faker",
+    "Use '@faker-js/faker' instead",
+    "The 'faker' package was intentionally corrupted — use the community fork @faker-js/faker",
+  ],
+  [
+    "event-stream",
+    "Audit carefully — this package had a supply chain attack",
+    "event-stream was compromised to steal cryptocurrency (CVE-2018-16490)",
+  ],
 ];
 
 // ---------------------------------------------------------------------------
@@ -143,9 +228,10 @@ export async function scanDependencies(projectPath: string): Promise<DepScanResu
   for (const dep of deps) {
     for (const [pkgName, suggestion, reason] of DEPRECATED_ALTERNATIVES) {
       if (dep.name === pkgName) {
-        const suggestionText = typeof suggestion === "function"
-          ? suggestion(cleanVersionString(dep.version))
-          : suggestion;
+        const suggestionText =
+          typeof suggestion === "function"
+            ? suggestion(cleanVersionString(dep.version))
+            : suggestion;
 
         if (!suggestionText) continue; // Function returned empty = not applicable
 
@@ -191,7 +277,9 @@ export async function scanDependencies(projectPath: string): Promise<DepScanResu
   const rangeIssues = checkVersionRanges(deps, projectPath, timestamp);
   issues.push(...rangeIssues);
 
-  const flaggedDeps = new Set(issues.map((i) => i.title.match(/: (.+?)(?:@|$)/)?.[1]).filter(Boolean)).size;
+  const flaggedDeps = new Set(
+    issues.map((i) => i.title.match(/: (.+?)(?:@|$)/)?.[1]).filter(Boolean),
+  ).size;
 
   const summary = [
     `Scanned ${deps.length} dependencies.`,
@@ -223,18 +311,25 @@ async function parseDependencies(projectPath: string): Promise<DepEntry[]> {
 
     const entries: DepEntry[] = [];
 
-    const deps = (pkg.dependencies && typeof pkg.dependencies === "object") ? pkg.dependencies as Record<string, string> : {};
+    const deps =
+      pkg.dependencies && typeof pkg.dependencies === "object"
+        ? (pkg.dependencies as Record<string, string>)
+        : {};
     for (const [name, version] of Object.entries(deps)) {
       entries.push({ name, version, isDev: false });
     }
 
-    const devDeps = (pkg.devDependencies && typeof pkg.devDependencies === "object") ? pkg.devDependencies as Record<string, string> : {};
+    const devDeps =
+      pkg.devDependencies && typeof pkg.devDependencies === "object"
+        ? (pkg.devDependencies as Record<string, string>)
+        : {};
     for (const [name, version] of Object.entries(devDeps)) {
       entries.push({ name, version, isDev: true });
     }
 
     return entries;
-  } catch { /* skip: unreadable/unparseable package.json */
+  } catch {
+    /* skip: unreadable/unparseable package.json */
     return [];
   }
 }
@@ -243,18 +338,15 @@ async function parseDependencies(projectPath: string): Promise<DepEntry[]> {
  * Checks if a lock file exists.
  */
 async function checkLockFile(projectPath: string): Promise<boolean> {
-  const lockFiles = [
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "bun.lockb",
-  ];
+  const lockFiles = ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb"];
 
   for (const lockFile of lockFiles) {
     try {
       await readFile(join(projectPath, lockFile));
       return true;
-    } catch { /* skip: lock file not found — continue checking */ }
+    } catch {
+      /* skip: lock file not found — continue checking */
+    }
   }
 
   return false;
@@ -268,16 +360,14 @@ async function checkLockFile(projectPath: string): Promise<boolean> {
  * Attempts to run npm audit and parse results.
  * This is optional — failures are silently ignored.
  */
-async function tryNpmAudit(
-  projectPath: string,
-  timestamp: string,
-): Promise<Issue[]> {
+async function tryNpmAudit(projectPath: string, timestamp: string): Promise<Issue[]> {
   const issues: Issue[] = [];
 
   try {
     // Only attempt if package-lock.json exists (npm audit requires it)
     await readFile(join(projectPath, "package-lock.json"));
-  } catch { /* No lock file = can't run npm audit */
+  } catch {
+    /* No lock file = can't run npm audit */
     return [];
   }
 
@@ -335,7 +425,9 @@ async function tryNpmAudit(
         });
       }
     }
-  } catch { /* skip: npm audit failed — non-fatal, heuristic checks still run */ }
+  } catch {
+    /* skip: npm audit failed — non-fatal, heuristic checks still run */
+  }
 
   return issues;
 }
@@ -347,11 +439,7 @@ async function tryNpmAudit(
 /**
  * Checks for overly permissive version ranges that could introduce breaking changes.
  */
-function checkVersionRanges(
-  deps: DepEntry[],
-  projectPath: string,
-  timestamp: string,
-): Issue[] {
+function checkVersionRanges(deps: DepEntry[], projectPath: string, timestamp: string): Issue[] {
   const issues: Issue[] = [];
 
   for (const dep of deps) {
@@ -364,8 +452,7 @@ function checkVersionRanges(
         category: "security",
         severity: "warning",
         title: `Unpinned dependency: ${dep.name}@${dep.version}`,
-        description:
-          `Using "${dep.version}" allows any version to be installed, including potentially malicious ones. Pin to a specific version range.`,
+        description: `Using "${dep.version}" allows any version to be installed, including potentially malicious ones. Pin to a specific version range.`,
         file: join(projectPath, "package.json"),
         line: null,
         status: "open",
@@ -412,7 +499,7 @@ function cleanVersionString(version: string): string {
  */
 function compareMajor(version: string, target: number): number {
   const major = parseInt(version.split(".")[0], 10);
-  if (isNaN(major)) return -1;
+  if (Number.isNaN(major)) return -1;
   return major - target;
 }
 
@@ -422,6 +509,6 @@ function compareMajor(version: string, target: number): number {
 function compareMinor(version: string, target: number): number {
   const parts = version.split(".");
   const minor = parseInt(parts[1] ?? "0", 10);
-  if (isNaN(minor)) return -1;
+  if (Number.isNaN(minor)) return -1;
   return minor - target;
 }

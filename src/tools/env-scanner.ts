@@ -9,8 +9,8 @@
 import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { glob } from "glob";
-import type { Issue, IssueCategory, Severity } from "../types.js";
 import { sanitizeEnvContent } from "../safety/path-guardian.js";
+import type { Issue, IssueCategory, Severity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -44,8 +44,7 @@ const ENV_FILES = [
 const PROCESS_ENV_REGEX = /process\.env\.([A-Z_][A-Z0-9_]*)/g;
 
 /** Regex to match process.env["VAR_NAME"] or process.env['VAR_NAME']. */
-const PROCESS_ENV_BRACKET_REGEX =
-  /process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]\]/g;
+const PROCESS_ENV_BRACKET_REGEX = /process\.env\[['"]([A-Z_][A-Z0-9_]*)['"]\]/g;
 
 /** Directories that indicate client-side code. */
 const CLIENT_PATHS = [
@@ -133,14 +132,14 @@ export async function scanEnvVars(projectPath: string): Promise<{
       for (const match of content.matchAll(PROCESS_ENV_REGEX)) {
         const varName = match[1];
         if (!usageMap.has(varName)) usageMap.set(varName, new Set());
-        usageMap.get(varName)!.add(relPath);
+        usageMap.get(varName)?.add(relPath);
       }
 
       // Match process.env["VAR_NAME"]
       for (const match of content.matchAll(PROCESS_ENV_BRACKET_REGEX)) {
         const varName = match[1];
         if (!usageMap.has(varName)) usageMap.set(varName, new Set());
-        usageMap.get(varName)!.add(relPath);
+        usageMap.get(varName)?.add(relPath);
       }
     }
 
@@ -181,7 +180,7 @@ export async function scanEnvVars(projectPath: string): Promise<{
         varsInFile.add(varName);
 
         if (!definitionMap.has(varName)) definitionMap.set(varName, new Set());
-        definitionMap.get(varName)!.add(envFileName);
+        definitionMap.get(varName)?.add(envFileName);
       }
 
       envFileContents.set(envFileName, varsInFile);
@@ -192,20 +191,13 @@ export async function scanEnvVars(projectPath: string): Promise<{
     // -----------------------------------------------------------------------
 
     // Collect all known var names from both maps.
-    const allVarNames = new Set([
-      ...usageMap.keys(),
-      ...definitionMap.keys(),
-    ]);
+    const allVarNames = new Set([...usageMap.keys(), ...definitionMap.keys()]);
 
     const envVars: EnvVarInfo[] = [];
 
     for (const varName of allVarNames) {
-      const usedIn = usageMap.has(varName)
-        ? [...usageMap.get(varName)!]
-        : [];
-      const definedIn = definitionMap.has(varName)
-        ? [...definitionMap.get(varName)!]
-        : [];
+      const usedIn = usageMap.has(varName) ? [...usageMap.get(varName)!] : [];
+      const definedIn = definitionMap.has(varName) ? [...definitionMap.get(varName)!] : [];
       const isPublic = varName.startsWith("NEXT_PUBLIC_");
 
       envVars.push({ name: varName, usedIn, definedIn, isPublic });
@@ -223,8 +215,8 @@ export async function scanEnvVars(projectPath: string): Promise<{
             `Undefined env var: ${varName}`,
             `\`process.env.${varName}\` is used in ${usedIn.join(", ")} but is not defined in any .env file. It will be \`undefined\` at runtime unless set externally.`,
             usedIn[0],
-            null
-          )
+            null,
+          ),
         );
       }
 
@@ -238,8 +230,8 @@ export async function scanEnvVars(projectPath: string): Promise<{
             `Unused env var: ${varName}`,
             `\`${varName}\` is defined in ${definedIn.join(", ")} but is never referenced in the source code. Consider removing it to reduce confusion.`,
             definedIn[0],
-            null
-          )
+            null,
+          ),
         );
       }
 
@@ -255,8 +247,8 @@ export async function scanEnvVars(projectPath: string): Promise<{
               `Server env var used in client code: ${varName}`,
               `\`process.env.${varName}\` is used in client-side file(s) ${clientFiles.join(", ")} but does not have the \`NEXT_PUBLIC_\` prefix. It will be \`undefined\` in the browser.`,
               clientFiles[0],
-              null
-            )
+              null,
+            ),
           );
         }
       }
@@ -276,8 +268,8 @@ export async function scanEnvVars(projectPath: string): Promise<{
               `Missing local config: ${varName}`,
               `\`${varName}\` is defined in .env.example but is missing from .env.local. This may cause runtime errors in local development.`,
               ".env.example",
-              null
-            )
+              null,
+            ),
           );
         }
       }
@@ -287,10 +279,10 @@ export async function scanEnvVars(projectPath: string): Promise<{
     // Summary
     // -----------------------------------------------------------------------
     const undefinedCount = envVars.filter(
-      (v) => v.usedIn.length > 0 && v.definedIn.length === 0
+      (v) => v.usedIn.length > 0 && v.definedIn.length === 0,
     ).length;
     const unusedCount = envVars.filter(
-      (v) => v.definedIn.length > 0 && v.usedIn.length === 0
+      (v) => v.definedIn.length > 0 && v.usedIn.length === 0,
     ).length;
 
     return {
@@ -312,7 +304,7 @@ export async function scanEnvVars(projectPath: string): Promise<{
           "Env scanner encountered an internal error",
           `The env scanner failed to complete: ${error instanceof Error ? error.message : String(error)}`,
           projectPath,
-          null
+          null,
         ),
       ],
       envVars: [],
@@ -375,7 +367,7 @@ function makeIssue(
   title: string,
   description: string,
   file: string,
-  line: number | null
+  line: number | null,
 ): Issue {
   return {
     id,

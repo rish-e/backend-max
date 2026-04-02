@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { glob } from "glob";
 import type { ProjectContext } from "../types.js";
-import { ensureDir, readJsonSafe, writeJson } from "../utils/helpers.js";
+import { ensureDir, writeJson } from "../utils/helpers.js";
 
 /** Directory where backend-max stores its state. */
 const STATE_DIR = ".backend-doctor";
@@ -22,10 +22,10 @@ const FRAMEWORK_INDICATORS: Record<string, string> = {
   express: "express",
   fastify: "fastify",
   hono: "hono",
-  "koa": "koa",
+  koa: "koa",
   "@nestjs/core": "nestjs",
   nuxt: "nuxt",
-  "remix": "remix",
+  remix: "remix",
 };
 
 const DATABASE_INDICATORS: Record<string, string> = {
@@ -117,7 +117,9 @@ export async function initContext(projectPath: string): Promise<ProjectContext> 
     if (parsed && typeof parsed === "object") {
       pkg = parsed;
     }
-  } catch { /* skip: package.json missing or unreadable — continue with defaults */ }
+  } catch {
+    /* skip: package.json missing or unreadable — continue with defaults */
+  }
 
   const projectName = (pkg.name as string) ?? projectPath.split("/").pop() ?? "unknown";
 
@@ -141,7 +143,9 @@ export async function initContext(projectPath: string): Promise<ProjectContext> 
     if (snippet) {
       notes.push(snippet);
     }
-  } catch { /* skip: no README — that's fine */ }
+  } catch {
+    /* skip: no README — that's fine */
+  }
 
   const context: ProjectContext = {
     name: projectName,
@@ -202,10 +206,7 @@ export async function updateContext(
  * Detects business domains by scanning route files and grouping them by
  * top-level path segment (e.g. /api/users/* -> "users").
  */
-async function detectDomains(
-  projectPath: string,
-  framework: string,
-): Promise<string[]> {
+async function detectDomains(projectPath: string, framework: string): Promise<string[]> {
   const domainSet = new Set<string>();
 
   // Determine where to look for route files

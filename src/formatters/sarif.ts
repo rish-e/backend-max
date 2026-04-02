@@ -2,7 +2,7 @@
 // backend-max — SARIF 2.1.0 report formatter (GitHub Code Scanning)
 // =============================================================================
 
-import type { DiagnosisReport, Issue, Severity } from "../types.js";
+import type { DiagnosisReport, Severity } from "../types.js";
 
 /** SARIF severity levels. */
 type SarifLevel = "error" | "warning" | "note" | "none";

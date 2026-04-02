@@ -30,7 +30,10 @@ export type IssueCategory =
   | "rate-limit"
   | "caching"
   | "versioning"
-  | "middleware";
+  | "middleware"
+  | "secrets"
+  | "migrations"
+  | "tech-debt";
 
 // ---------------------------------------------------------------------------
 // Route scanning

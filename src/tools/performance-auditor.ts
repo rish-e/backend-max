@@ -6,14 +6,9 @@
 // =============================================================================
 
 import { glob } from "glob";
-import {
-  Node,
-  SyntaxKind,
-  type SourceFile,
-  type CallExpression,
-} from "ts-morph";
-import type { Issue, IssueCategory, Severity } from "../types.js";
+import { Node, type SourceFile, SyntaxKind } from "ts-morph";
 import { createProject } from "../analyzers/typescript.js";
+import type { Issue, IssueCategory, Severity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -26,13 +21,7 @@ const ROUTE_PATTERNS = [
   "src/pages/api/**/*.{ts,tsx,js,jsx}",
 ];
 
-const IGNORE_DIRS = [
-  "node_modules/**",
-  ".next/**",
-  "dist/**",
-  "build/**",
-  ".git/**",
-];
+const IGNORE_DIRS = ["node_modules/**", ".next/**", "dist/**", "build/**", ".git/**"];
 
 /** Database call patterns (Prisma, Drizzle, Mongoose, Knex, etc.). */
 const DB_CALL_PATTERNS = [
@@ -149,11 +138,7 @@ export async function auditPerformance(projectPath: string): Promise<{
       // ------------------------------------------------------------------
       // 2. Unbounded queries
       // ------------------------------------------------------------------
-      const unboundedIssues = detectUnboundedQueries(
-        sourceFile,
-        filePath,
-        relPath
-      );
+      const unboundedIssues = detectUnboundedQueries(sourceFile, filePath, relPath);
       for (const issue of unboundedIssues) {
         issues.push(issue);
         unboundedCount++;
@@ -162,11 +147,7 @@ export async function auditPerformance(projectPath: string): Promise<{
       // ------------------------------------------------------------------
       // 3. Missing pagination on GET list endpoints
       // ------------------------------------------------------------------
-      const paginationIssues = detectMissingPagination(
-        sourceFile,
-        filePath,
-        relPath
-      );
+      const paginationIssues = detectMissingPagination(sourceFile, filePath, relPath);
       for (const issue of paginationIssues) {
         issues.push(issue);
         paginationCount++;
@@ -175,11 +156,7 @@ export async function auditPerformance(projectPath: string): Promise<{
       // ------------------------------------------------------------------
       // 4. Over-fetching (no select clause)
       // ------------------------------------------------------------------
-      const overFetchIssues = detectOverFetching(
-        sourceFile,
-        filePath,
-        relPath
-      );
+      const overFetchIssues = detectOverFetching(sourceFile, filePath, relPath);
       issues.push(...overFetchIssues);
     }
 
@@ -201,7 +178,7 @@ export async function auditPerformance(projectPath: string): Promise<{
           "Performance auditor encountered an internal error",
           `The performance auditor failed: ${error instanceof Error ? error.message : String(error)}`,
           projectPath,
-          null
+          null,
         ),
       ],
       summary: {
@@ -221,11 +198,7 @@ export async function auditPerformance(projectPath: string): Promise<{
  * Find database calls that occur inside loops (for, for-of, for-in,
  * forEach, map with await). This is the classic N+1 pattern.
  */
-function detectN1Queries(
-  sourceFile: SourceFile,
-  filePath: string,
-  relPath: string
-): Issue[] {
+function detectN1Queries(sourceFile: SourceFile, filePath: string, relPath: string): Issue[] {
   const issues: Issue[] = [];
 
   // Find all loop-like constructs.
@@ -247,16 +220,14 @@ function detectN1Queries(
           `N+1 query in loop: ${relPath}`,
           `Database call "${dbCalls[0]}" found inside a loop in ${relPath}. This causes N+1 queries which degrade performance linearly with data size. Refactor to batch the query outside the loop.`,
           filePath,
-          loop.getStartLineNumber()
-        )
+          loop.getStartLineNumber(),
+        ),
       );
     }
   }
 
   // Also check forEach / map / flatMap callbacks with await inside.
-  const callExpressions = sourceFile.getDescendantsOfKind(
-    SyntaxKind.CallExpression
-  );
+  const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
 
   for (const call of callExpressions) {
     const expr = call.getExpression();
@@ -283,8 +254,8 @@ function detectN1Queries(
             `N+1 query in ${methodName} callback: ${relPath}`,
             `Database call "${dbCalls[0]}" found inside an async ${methodName} callback in ${relPath}. Each iteration triggers a separate query. Use a batch operation instead.`,
             filePath,
-            call.getStartLineNumber()
-          )
+            call.getStartLineNumber(),
+          ),
         );
       }
     }
@@ -314,7 +285,7 @@ function findDbCallsInText(text: string): string[] {
 function detectUnboundedQueries(
   sourceFile: SourceFile,
   filePath: string,
-  relPath: string
+  relPath: string,
 ): Issue[] {
   const issues: Issue[] = [];
   const text = sourceFile.getText();
@@ -341,8 +312,8 @@ function detectUnboundedQueries(
           `Unbounded query: ${relPath}`,
           `Query "${match[0].slice(0, 60)}..." in ${relPath} has no take/limit. Large tables will return all rows, causing memory issues and slow responses. Add a limit.`,
           filePath,
-          lineNum
-        )
+          lineNum,
+        ),
       );
     }
   }
@@ -360,7 +331,7 @@ function detectUnboundedQueries(
 function detectMissingPagination(
   sourceFile: SourceFile,
   filePath: string,
-  relPath: string
+  relPath: string,
 ): Issue[] {
   const issues: Issue[] = [];
 
@@ -368,9 +339,7 @@ function detectMissingPagination(
   const getHandlers = findExportedHandlers(sourceFile, "GET");
 
   for (const handler of getHandlers) {
-    const body = Node.isArrowFunction(handler)
-      ? handler.getBody()
-      : handler.getBody();
+    const body = Node.isArrowFunction(handler) ? handler.getBody() : handler.getBody();
 
     if (!body) continue;
 
@@ -386,8 +355,7 @@ function detectMissingPagination(
 
     // Also check if search params are accessed for page/limit.
     const usesSearchParams =
-      /searchParams/.test(bodyText) &&
-      (/page/.test(bodyText) || /limit/.test(bodyText));
+      /searchParams/.test(bodyText) && (/page/.test(bodyText) || /limit/.test(bodyText));
     if (usesSearchParams) continue;
 
     issues.push(
@@ -398,8 +366,8 @@ function detectMissingPagination(
         `Missing pagination: ${relPath}`,
         `GET handler in ${relPath} returns list data but does not implement pagination. As data grows, this endpoint will become slow. Add page/limit or cursor-based pagination.`,
         filePath,
-        handler.getStartLineNumber()
-      )
+        handler.getStartLineNumber(),
+      ),
     );
   }
 
@@ -413,11 +381,7 @@ function detectMissingPagination(
 /**
  * Detect Prisma queries that fetch all fields (no `select` clause).
  */
-function detectOverFetching(
-  sourceFile: SourceFile,
-  filePath: string,
-  relPath: string
-): Issue[] {
+function detectOverFetching(sourceFile: SourceFile, filePath: string, relPath: string): Issue[] {
   const issues: Issue[] = [];
   const text = sourceFile.getText();
 
@@ -443,8 +407,8 @@ function detectOverFetching(
         `No select clause: ${relPath}`,
         `Prisma query "${match[0].slice(0, 50)}..." in ${relPath} fetches all columns. Use a \`select\` clause to fetch only the fields the frontend needs, reducing payload size and database load.`,
         filePath,
-        lineNum
-      )
+        lineNum,
+      ),
     );
   }
 
@@ -463,10 +427,7 @@ type HandlerNode =
 /**
  * Find exported handlers for a given HTTP method name.
  */
-function findExportedHandlers(
-  sourceFile: SourceFile,
-  methodName: string
-): HandlerNode[] {
+function findExportedHandlers(sourceFile: SourceFile, methodName: string): HandlerNode[] {
   const handlers: HandlerNode[] = [];
 
   // Named function exports: export async function GET(...)
@@ -482,10 +443,7 @@ function findExportedHandlers(
     for (const decl of varStmt.getDeclarations()) {
       if (decl.getName() !== methodName) continue;
       const init = decl.getInitializer();
-      if (
-        init &&
-        (Node.isArrowFunction(init) || Node.isFunctionExpression(init))
-      ) {
+      if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
         handlers.push(init);
       }
     }
@@ -523,7 +481,7 @@ function makeIssue(
   title: string,
   description: string,
   file: string,
-  line: number | null
+  line: number | null,
 ): Issue {
   return {
     id,

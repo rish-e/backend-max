@@ -3,7 +3,6 @@
 // =============================================================================
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { glob } from "glob";
 import type { Issue, RouteInfo } from "../types.js";
 import { getTimestamp } from "../utils/helpers.js";
@@ -63,11 +62,24 @@ const MIDDLEWARE_PATTERNS: Array<{
   type: MiddlewareEntry["type"];
 }> = [
   // Auth
-  { pattern: /auth\s*\(|authenticate|passport\.authenticate|withAuth|requireAuth|clerkMiddleware|authMiddleware/i, name: "auth", type: "auth" },
-  { pattern: /getServerSession|getSession|verifyToken|verifyJwt|jwt\s*\(/i, name: "session-auth", type: "auth" },
+  {
+    pattern:
+      /auth\s*\(|authenticate|passport\.authenticate|withAuth|requireAuth|clerkMiddleware|authMiddleware/i,
+    name: "auth",
+    type: "auth",
+  },
+  {
+    pattern: /getServerSession|getSession|verifyToken|verifyJwt|jwt\s*\(/i,
+    name: "session-auth",
+    type: "auth",
+  },
 
   // Validation
-  { pattern: /zValidator|validate|validateRequest|validateBody|celebrate|joi\.validate/i, name: "validation", type: "validation" },
+  {
+    pattern: /zValidator|validate|validateRequest|validateBody|celebrate|joi\.validate/i,
+    name: "validation",
+    type: "validation",
+  },
 
   // Rate limiting
   { pattern: /rateLimit|rateLimiter|throttle|slowDown/i, name: "rate-limit", type: "rate-limit" },
@@ -82,7 +94,11 @@ const MIDDLEWARE_PATTERNS: Array<{
   { pattern: /errorHandler|onError|setErrorHandler/i, name: "error-handler", type: "error" },
 
   // Parsers
-  { pattern: /express\.json|express\.urlencoded|bodyParser|cookieParser|multer/i, name: "body-parser", type: "parser" },
+  {
+    pattern: /express\.json|express\.urlencoded|bodyParser|cookieParser|multer/i,
+    name: "body-parser",
+    type: "parser",
+  },
   { pattern: /helmet\s*\(/i, name: "helmet", type: "custom" },
   { pattern: /compression\s*\(/i, name: "compression", type: "custom" },
 ];
@@ -105,7 +121,8 @@ export async function visualizeMiddleware(
   try {
     const scanResult = await scanRoutes(projectPath);
     routes = scanResult.routes;
-  } catch { /* skip: route scan failure */
+  } catch {
+    /* skip: route scan failure */
     return {
       issues: [],
       globalMiddleware: [],
@@ -156,7 +173,7 @@ export async function visualizeMiddleware(
     // Auth should come before handler logic, after CORS
     const corsIdx = types.indexOf("cors");
     const authIdx = types.indexOf("auth");
-    const validationIdx = types.indexOf("validation");
+    const _validationIdx = types.indexOf("validation");
 
     if (corsIdx !== -1 && authIdx !== -1 && corsIdx > authIdx) {
       issues.push({
@@ -207,8 +224,10 @@ export async function visualizeMiddleware(
       severity: "warning",
       title: `${unprotectedMutations.length} mutation endpoint(s) with no middleware`,
       description:
-        `These endpoints have no middleware chain: ${unprotectedMutations.slice(0, 5).map((c) => `${c.method} ${c.route}`).join(", ")}. ` +
-        `Consider adding auth, validation, or rate limiting middleware.`,
+        `These endpoints have no middleware chain: ${unprotectedMutations
+          .slice(0, 5)
+          .map((c) => `${c.method} ${c.route}`)
+          .join(", ")}. ` + `Consider adding auth, validation, or rate limiting middleware.`,
       file: unprotectedMutations[0].handlerFile,
       line: null,
       status: "open",
@@ -260,7 +279,7 @@ async function detectGlobalMiddleware(projectPath: string): Promise<MiddlewareEn
 
       while ((match = useRegex.exec(content)) !== null) {
         const lineNum = content.slice(0, match.index).split("\n").length;
-        const lineContent = lines[lineNum - 1] ?? "";
+        const _lineContent = lines[lineNum - 1] ?? "";
 
         // Determine what middleware this is
         const surrounding = content.slice(match.index, Math.min(match.index + 200, content.length));
@@ -282,7 +301,9 @@ async function detectGlobalMiddleware(projectPath: string): Promise<MiddlewareEn
           }
         }
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return entries;
@@ -335,7 +356,9 @@ async function detectNextjsMiddleware(projectPath: string): Promise<MiddlewareEn
           appliesTo: "*",
         });
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return entries;
@@ -361,7 +384,9 @@ async function detectInlineMiddleware(
         });
       }
     }
-  } catch { /* skip: unreadable file */ }
+  } catch {
+    /* skip: unreadable file */
+  }
 
   return entries;
 }
@@ -397,7 +422,7 @@ function buildVisualization(
   for (const chain of chains) {
     const key = `${chain.method} ${chain.route}`;
     if (!routeChains.has(key)) routeChains.set(key, []);
-    routeChains.get(key)!.push(chain);
+    routeChains.get(key)?.push(chain);
   }
 
   lines.push("## Route Middleware Chains");
@@ -411,9 +436,7 @@ function buildVisualization(
       lines.push("");
     } else {
       lines.push(`### ${routeKey}`);
-      const middlewareFlow = chain.middleware
-        .map((mw) => `\`${mw.name}\``)
-        .join(" -> ");
+      const middlewareFlow = chain.middleware.map((mw) => `\`${mw.name}\``).join(" -> ");
       lines.push(`${middlewareFlow} -> **handler**`);
       lines.push("");
     }

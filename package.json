@@ -4,6 +4,7 @@
   "description": "The AI-powered backend diagnostic MCP that understands what you're building and makes sure it actually works.",
   "type": "module",
   "main": "dist/server.js",
+  "types": "dist/server.d.ts",
   "bin": {
     "backend-max": "dist/server.js",
     "backend-max-cli": "dist/cli.js"
@@ -12,8 +13,12 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/server.js",
-    "lint": "eslint src/",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --fix src/",
+    "format": "biome format --write src/",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
     "test:watch": "vitest",
     "diagnose": "node dist/cli.js diagnose"
   },
@@ -41,7 +46,14 @@
   ],
   "author": "Rishi Kolisetty",
   "license": "MIT",
-  "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE", "server.json", "smithery.yaml"],
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "server.json",
+    "smithery.yaml"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/rish-e/backend-max.git"
@@ -52,12 +64,13 @@
   "homepage": "https://github.com/rish-e/backend-max#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "ts-morph": "^27.0.2",
+    "chalk": "^5.4.1",
     "glob": "^11.0.0",
-    "zod": "^3.24.0",
-    "chalk": "^5.4.1"
+    "ts-morph": "^27.0.2",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

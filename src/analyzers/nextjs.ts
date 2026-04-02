@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { readFile } from "node:fs/promises";
-import { join, relative, sep, posix } from "node:path";
+import { join, posix, relative, sep } from "node:path";
 import { glob } from "glob";
 import type { MiddlewareInfo, RouteInfo } from "../types.js";
 import type { FrameworkAnalyzer, FrameworkCheck } from "./framework-interface.js";
@@ -39,7 +39,7 @@ export function filePathToUrl(filePath: string, appDir: string): string {
     processed.push(segment);
   }
 
-  const url = "/" + processed.join("/");
+  const url = `/${processed.join("/")}`;
   return url === "/" ? "/" : url;
 }
 
@@ -90,9 +90,7 @@ export function isApiRoute(filePath: string): boolean {
  * @param projectPath  Root of the Next.js project.
  * @returns            MiddlewareInfo if a middleware file exists, null otherwise.
  */
-export async function detectMiddleware(
-  projectPath: string,
-): Promise<MiddlewareInfo | null> {
+export async function detectMiddleware(projectPath: string): Promise<MiddlewareInfo | null> {
   const candidates = ["middleware.ts", "middleware.js"];
   let middlewarePath: string | null = null;
   let content: string | null = null;
@@ -103,7 +101,9 @@ export async function detectMiddleware(
       content = await readFile(fullPath, "utf-8");
       middlewarePath = fullPath;
       break;
-    } catch { /* skip: file doesn't exist */ }
+    } catch {
+      /* skip: file doesn't exist */
+    }
   }
 
   // Also check inside src/
@@ -114,7 +114,9 @@ export async function detectMiddleware(
         content = await readFile(fullPath, "utf-8");
         middlewarePath = fullPath;
         break;
-      } catch { /* skip: file doesn't exist */ }
+      } catch {
+        /* skip: file doesn't exist */
+      }
     }
   }
 
@@ -125,9 +127,7 @@ export async function detectMiddleware(
   // Extract matcher patterns from the config export
   const matchers: string[] = [];
   const matcherRegex = /["'`](\/[^"'`]*?)["'`]/g;
-  const configSection = content.match(
-    /export\s+const\s+config\s*=\s*\{[\s\S]*?\}/,
-  );
+  const configSection = content.match(/export\s+const\s+config\s*=\s*\{[\s\S]*?\}/);
   if (configSection) {
     let m: RegExpExecArray | null;
     while ((m = matcherRegex.exec(configSection[0])) !== null) {
@@ -135,13 +135,11 @@ export async function detectMiddleware(
     }
   }
 
-  const hasAuth =
-    /auth|session|token|getToken|withAuth|clerkMiddleware|authMiddleware/i.test(
-      content,
-    );
+  const hasAuth = /auth|session|token|getToken|withAuth|clerkMiddleware|authMiddleware/i.test(
+    content,
+  );
   const hasRedirects = /redirect|NextResponse\.redirect/i.test(content);
-  const hasHeaders =
-    /headers|NextResponse\.next\(\s*\{[\s\S]*?headers/i.test(content);
+  const hasHeaders = /headers|NextResponse\.next\(\s*\{[\s\S]*?headers/i.test(content);
 
   return {
     filePath: middlewarePath,
@@ -180,13 +178,8 @@ export function detectRouteGroups(filePath: string): string[] {
  * @param projectPath  Root of the Next.js project.
  * @returns            Absolute path to the app directory, or null.
  */
-export async function findAppDir(
-  projectPath: string,
-): Promise<string | null> {
-  const candidates = [
-    join(projectPath, "app"),
-    join(projectPath, "src", "app"),
-  ];
+export async function findAppDir(projectPath: string): Promise<string | null> {
+  const candidates = [join(projectPath, "app"), join(projectPath, "src", "app")];
 
   for (const candidate of candidates) {
     const files = await glob("**/route.{ts,js}", {
@@ -235,15 +228,13 @@ export function createNextJSAnalyzer(): FrameworkAnalyzer {
 
     async detect(projectPath: string): Promise<boolean> {
       try {
-        const raw = await readFile(
-          join(projectPath, "package.json"),
-          "utf-8",
-        );
+        const raw = await readFile(join(projectPath, "package.json"), "utf-8");
         const pkg = JSON.parse(raw) as Record<string, unknown>;
         const deps = (pkg.dependencies ?? {}) as Record<string, string>;
         const devDeps = (pkg.devDependencies ?? {}) as Record<string, string>;
         return "next" in deps || "next" in devDeps;
-      } catch { /* skip: unreadable/unparseable package.json */
+      } catch {
+        /* skip: unreadable/unparseable package.json */
         return false;
       }
     },

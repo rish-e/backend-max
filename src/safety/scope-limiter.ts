@@ -3,11 +3,11 @@
  * on file count, file size, scan depth, and memory usage.
  */
 
-import { readdir, stat, unlink, readFile, writeFile, appendFile } from "node:fs/promises";
-import { join, relative, extname } from "node:path";
-import { statSync, existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
+import { appendFile, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { extname, join, relative } from "node:path";
 import type { ScopeLimits } from "../types.js";
-import { ensureDir, readJsonSafe } from "../utils/helpers.js";
+import { readJsonSafe } from "../utils/helpers.js";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -20,15 +20,7 @@ const DEFAULT_LIMITS: ScopeLimits = {
   maxTotalSizeBytes: 104_857_600, // 100 MB
   reportRetentionDays: 30,
   autoGitignore: true,
-  ignoreDirs: [
-    "node_modules",
-    ".next",
-    "dist",
-    "build",
-    ".git",
-    "coverage",
-    ".turbo",
-  ],
+  ignoreDirs: ["node_modules", ".next", "dist", "build", ".git", "coverage", ".turbo"],
 };
 
 /** State directory used by backend-max. */
@@ -99,9 +91,7 @@ export async function enforceLimits(
       if (fileStat.size > limits.maxFileSizeBytes) {
         skipped.push(filePath);
         if (skipped.length <= 5) {
-          warnings.push(
-            `Skipped (too large: ${(fileStat.size / 1024).toFixed(0)}KB): ${rel}`,
-          );
+          warnings.push(`Skipped (too large: ${(fileStat.size / 1024).toFixed(0)}KB): ${rel}`);
         }
         continue;
       }
@@ -152,9 +142,7 @@ export async function enforceLimits(
  * @param projectPath - Absolute path to the project root.
  * @returns Object with the count of pruned reports.
  */
-export async function pruneOldReports(
-  projectPath: string,
-): Promise<{ pruned: number }> {
+export async function pruneOldReports(projectPath: string): Promise<{ pruned: number }> {
   const limits = await loadLimits(projectPath);
   const reportsDir = join(projectPath, STATE_DIR, "reports");
 
@@ -190,19 +178,14 @@ export async function pruneOldReports(
  * @param projectPath - Absolute path to the project root.
  * @returns `true` if the gitignore was modified or created, `false` if no change was needed.
  */
-export async function ensureGitignore(
-  projectPath: string,
-): Promise<boolean> {
+export async function ensureGitignore(projectPath: string): Promise<boolean> {
   const gitignorePath = join(projectPath, ".gitignore");
 
   try {
     if (existsSync(gitignorePath)) {
       const content = await readFile(gitignorePath, "utf-8");
       // Check if already listed (handle with/without trailing slash)
-      if (
-        content.includes(".backend-doctor/") ||
-        content.includes(".backend-doctor\n")
-      ) {
+      if (content.includes(".backend-doctor/") || content.includes(".backend-doctor\n")) {
         return false;
       }
       await appendFile(
@@ -212,11 +195,7 @@ export async function ensureGitignore(
       );
       return true;
     } else {
-      await writeFile(
-        gitignorePath,
-        "# Backend Max diagnostic data\n.backend-doctor/\n",
-        "utf-8",
-      );
+      await writeFile(gitignorePath, "# Backend Max diagnostic data\n.backend-doctor/\n", "utf-8");
       return true;
     }
   } catch {
@@ -231,9 +210,7 @@ export async function ensureGitignore(
  * @param files - Array of absolute file paths.
  * @returns Stats including total count, total size, and the largest file.
  */
-export function getScanStats(
-  files: string[],
-): {
+export function getScanStats(files: string[]): {
   totalFiles: number;
   totalSizeBytes: number;
   largestFile: { path: string; size: number } | null;

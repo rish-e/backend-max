@@ -5,8 +5,8 @@
 // missing error handling, missing auth, and unprotected database calls.
 // =============================================================================
 
-import type { Issue, IssueCategory, Severity, ServerAction } from "../types.js";
 import { scanServerActions } from "../analyzers/server-actions.js";
+import type { Issue, IssueCategory, ServerAction, Severity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Public API

@@ -4,13 +4,7 @@
 
 import { join } from "node:path";
 import type { Issue, LedgerEntry } from "../types.js";
-import {
-  ensureDir,
-  readJsonSafe,
-  writeJson,
-  generateIssueId,
-  getTimestamp,
-} from "../utils/helpers.js";
+import { ensureDir, getTimestamp, readJsonSafe, writeJson } from "../utils/helpers.js";
 
 /** Directory where backend-max stores its state. */
 const STATE_DIR = ".backend-doctor";
@@ -71,10 +65,7 @@ function issueToLedgerEntry(issue: Issue, now: string): LedgerEntry {
  * @param newIssues   - Issues discovered in the latest scan.
  * @returns A LedgerUpdate summary.
  */
-export async function updateLedger(
-  projectPath: string,
-  newIssues: Issue[],
-): Promise<LedgerUpdate> {
+export async function updateLedger(projectPath: string, newIssues: Issue[]): Promise<LedgerUpdate> {
   const dirPath = join(projectPath, STATE_DIR);
   await ensureDir(dirPath);
 

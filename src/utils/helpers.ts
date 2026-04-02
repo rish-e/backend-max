@@ -2,9 +2,9 @@
 // backend-max — Shared utility functions
 // =============================================================================
 
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import { createHash } from "node:crypto";
 import type { Issue } from "../types.js";
 
 /**
@@ -43,7 +43,7 @@ export async function readJsonSafe<T>(filePath: string, fallback: T): Promise<T>
 export async function writeJson(filePath: string, data: unknown): Promise<void> {
   const dir = resolve(filePath, "..");
   await ensureDir(dir);
-  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
 }
 
 /**
@@ -82,10 +82,7 @@ export function generateIssueId(category: string, file: string, detail: string):
   };
 
   const prefix = prefixMap[category] ?? category.slice(0, 3).toUpperCase();
-  const hash = createHash("sha256")
-    .update(`${file}:${detail}`)
-    .digest("hex")
-    .slice(0, 6);
+  const hash = createHash("sha256").update(`${file}:${detail}`).digest("hex").slice(0, 6);
 
   return `${prefix}-${hash}`;
 }

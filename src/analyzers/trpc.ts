@@ -5,16 +5,16 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { glob } from "glob";
-import type { RouteInfo, MethodInfo, Issue } from "../types.js";
+import { type Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
+import type { Issue, MethodInfo, RouteInfo } from "../types.js";
 import type { FrameworkAnalyzer, FrameworkCheck } from "./framework-interface.js";
 import {
   createProject,
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
   detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
 } from "./typescript.js";
-import { Node, SyntaxKind, type SourceFile, type Project } from "ts-morph";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -31,7 +31,7 @@ const PROCEDURE_REGEX =
 const INPUT_REGEX = /\.input\s*\(/;
 
 /** Pattern for .query() calls. */
-const QUERY_REGEX = /\.query\s*\(/;
+const _QUERY_REGEX = /\.query\s*\(/;
 
 /** Pattern for .mutation() calls. */
 const MUTATION_REGEX = /\.mutation\s*\(/;
@@ -73,7 +73,8 @@ async function detect(projectPath: string): Promise<boolean> {
       "@trpc/next" in deps ||
       "@trpc/next" in devDeps
     );
-  } catch { /* skip: unreadable/unparseable package.json */
+  } catch {
+    /* skip: unreadable/unparseable package.json */
     return false;
   }
 }
@@ -107,7 +108,9 @@ async function scanTRPCRoutes(projectPath: string): Promise<RouteInfo[]> {
       if (TRPC_ROUTER_REGEX.test(content)) {
         routerFiles.push({ filePath, content });
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   if (routerFiles.length === 0) {
@@ -121,7 +124,9 @@ async function scanTRPCRoutes(projectPath: string): Promise<RouteInfo[]> {
     try {
       const routes = analyzeTRPCFile(filePath, content, project);
       allRoutes.push(...routes);
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   allRoutes.sort((a, b) => a.url.localeCompare(b.url));
@@ -135,15 +140,12 @@ async function scanTRPCRoutes(projectPath: string): Promise<RouteInfo[]> {
 /**
  * Analyzes a single tRPC router file for procedure definitions.
  */
-function analyzeTRPCFile(
-  filePath: string,
-  content: string,
-  project: Project,
-): RouteInfo[] {
+function analyzeTRPCFile(filePath: string, content: string, project: Project): RouteInfo[] {
   let sourceFile: SourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
-  } catch { /* skip: unreadable/unparseable file */
+  } catch {
+    /* skip: unreadable/unparseable file */
     return [];
   }
 
@@ -171,7 +173,9 @@ function analyzeTRPCFile(
         : /prisma\.|db\.|knex|kysely|typeorm|sequelize|mongoose/i.test(proc.bodyText),
       hasAuth: proc.isProtected || (procNode ? detectAuthPatterns(procNode) : false),
       returnType: null,
-      databaseCalls: procNode ? detectDatabaseCalls(procNode) : extractDbCallsFromText(proc.bodyText),
+      databaseCalls: procNode
+        ? detectDatabaseCalls(procNode)
+        : extractDbCallsFromText(proc.bodyText),
       lineNumber: proc.line,
     };
 
@@ -195,9 +199,7 @@ function extractRouterName(sourceFile: SourceFile): string | null {
       const init = decl.getInitializer();
       if (!init) continue;
       const text = init.getText();
-      if (
-        /(?:router|createTRPCRouter)\s*\(/.test(text)
-      ) {
+      if (/(?:router|createTRPCRouter)\s*\(/.test(text)) {
         return decl.getName().replace(/Router$/, "");
       }
     }
@@ -226,9 +228,9 @@ interface ProcedureInfo {
 /**
  * Extracts tRPC procedures from file content using regex analysis.
  */
-function extractProcedures(content: string, filePath: string): ProcedureInfo[] {
+function extractProcedures(content: string, _filePath: string): ProcedureInfo[] {
   const procedures: ProcedureInfo[] = [];
-  const lines = content.split("\n");
+  const _lines = content.split("\n");
 
   PROCEDURE_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -282,7 +284,11 @@ function findProcedureEnd(text: string): number {
     // Also check for next procedure pattern
     if (started && depth <= 1 && i > 50) {
       const remaining = text.slice(i);
-      if (/^\s*\w+\s*:\s*(?:publicProcedure|protectedProcedure|procedure|t\.procedure)/.test(remaining)) {
+      if (
+        /^\s*\w+\s*:\s*(?:publicProcedure|protectedProcedure|procedure|t\.procedure)/.test(
+          remaining,
+        )
+      ) {
         return i;
       }
     }
@@ -295,9 +301,7 @@ function findProcedureEnd(text: string): number {
  * Finds a procedure's AST node by name.
  */
 function findProcedureNode(sourceFile: SourceFile, procName: string): Node | null {
-  const properties = sourceFile.getDescendantsOfKind(
-    SyntaxKind.PropertyAssignment,
-  );
+  const properties = sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAssignment);
 
   for (const prop of properties) {
     if (prop.getName() === procName) {

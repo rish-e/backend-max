@@ -63,26 +63,23 @@ export interface TypeTraceResult {
 // ---------------------------------------------------------------------------
 
 /** Patterns that indicate service/business logic layer files. */
-const SERVICE_PATTERNS = [
-  /service/i, /usecase/i, /interactor/i, /handler/i, /controller/i,
-];
+const SERVICE_PATTERNS = [/service/i, /usecase/i, /interactor/i, /handler/i, /controller/i];
 
 /** Patterns that indicate repository/data-access layer files. */
-const REPO_PATTERNS = [
-  /repository/i, /repo\b/i, /dal\b/i, /data-access/i, /store/i,
-];
+const REPO_PATTERNS = [/repository/i, /repo\b/i, /dal\b/i, /data-access/i, /store/i];
 
 /** Patterns for extracting type definitions. */
 const TYPE_DEF_REGEX = /(?:type|interface)\s+(\w+)\s*(?:=\s*)?{([^}]*)}/g;
 
 /** Patterns for function return type annotations. */
-const RETURN_TYPE_REGEX = /(?:Promise<|:\s*)(\w+)(?:[>\s]|$)/;
+const _RETURN_TYPE_REGEX = /(?:Promise<|:\s*)(\w+)(?:[>\s]|$)/;
 
 /** Patterns for property access in frontend code. */
 const PROPERTY_ACCESS_REGEX = /(?:data|result|response|res|body)\.(\w+(?:\.\w+)*)/g;
 
 /** Patterns for object destructuring. */
-const DESTRUCTURE_REGEX = /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*(?:await\s+)?(?:data|result|response|res|body)/g;
+const DESTRUCTURE_REGEX =
+  /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*(?:await\s+)?(?:data|result|response|res|body)/g;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -92,9 +89,7 @@ const DESTRUCTURE_REGEX = /(?:const|let|var)\s*\{([^}]+)\}\s*=\s*(?:await\s+)?(?
  * Traces types across application layers: frontend → route → service → DB.
  * Identifies mismatches where types diverge between layers.
  */
-export async function traceTypes(
-  projectPath: string,
-): Promise<TypeTraceResult> {
+export async function traceTypes(projectPath: string): Promise<TypeTraceResult> {
   const timestamp = getTimestamp();
   const issues: Issue[] = [];
   const traces: TypeTrace[] = [];
@@ -126,12 +121,7 @@ export async function traceTypes(
   // 3. For each route, build a type trace
   for (const route of routes) {
     for (const method of route.methods) {
-      const trace = await buildTypeTrace(
-        projectPath,
-        route,
-        method.method,
-        layers,
-      );
+      const trace = await buildTypeTrace(projectPath, route, method.method, layers);
 
       if (trace.chain.length > 1) {
         traces.push(trace);
@@ -203,9 +193,14 @@ async function categorizeFiles(projectPath: string): Promise<LayerFiles> {
     absolute: true,
     nodir: true,
     ignore: [
-      "**/node_modules/**", "**/dist/**", "**/build/**",
-      "**/.next/**", "**/coverage/**", "**/*.test.*",
-      "**/*.spec.*", "**/__tests__/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/__tests__/**",
     ],
   });
 
@@ -220,7 +215,9 @@ async function categorizeFiles(projectPath: string): Promise<LayerFiles> {
 
     // Frontend: components, pages (non-api), app (non-api), hooks, lib with fetch
     if (
-      /^(components|app(?!.*api)|pages(?!.*api)|hooks|lib|src\/components|src\/hooks|src\/lib)/.test(rel) &&
+      /^(components|app(?!.*api)|pages(?!.*api)|hooks|lib|src\/components|src\/hooks|src\/lib)/.test(
+        rel,
+      ) &&
       !SERVICE_PATTERNS.some((p) => p.test(rel)) &&
       !REPO_PATTERNS.some((p) => p.test(rel))
     ) {
@@ -330,7 +327,7 @@ async function buildTypeTrace(
 
     // Check for property mismatches between layers
     if (current.properties.length > 0 && next.properties.length > 0) {
-      const currentProps = new Set(current.properties.map((p) => p.toLowerCase()));
+      const _currentProps = new Set(current.properties.map((p) => p.toLowerCase()));
       const nextProps = new Set(next.properties.map((p) => p.toLowerCase()));
 
       const missingInNext: string[] = [];
@@ -370,7 +367,7 @@ async function buildTypeTrace(
 // Per-layer type extraction
 // ---------------------------------------------------------------------------
 
-async function extractRouteTypes(filePath: string, url: string): Promise<TypeLink | null> {
+async function extractRouteTypes(filePath: string, _url: string): Promise<TypeLink | null> {
   const content = await safeReadFile(filePath);
   if (!content) return null;
 
@@ -379,21 +376,30 @@ async function extractRouteTypes(filePath: string, url: string): Promise<TypeLin
   // Extract from response JSON construction: json({ user, posts })
   const jsonResponse = content.match(/json\s*\(\s*\{([^}]+)\}/);
   if (jsonResponse) {
-    const props = jsonResponse[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = jsonResponse[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
   // Extract from NextResponse.json({ ... })
   const nextResponse = content.match(/NextResponse\.json\s*\(\s*\{([^}]+)\}/);
   if (nextResponse) {
-    const props = nextResponse[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = nextResponse[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
   // Extract from return statements: return { user, ... }
   const returnObj = content.match(/return\s*\{([^}]+)\}/);
   if (returnObj && !/import|require/.test(returnObj[0])) {
-    const props = returnObj[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = returnObj[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
@@ -402,7 +408,10 @@ async function extractRouteTypes(filePath: string, url: string): Promise<TypeLin
   let match: RegExpExecArray | null;
   while ((match = TYPE_DEF_REGEX.exec(content)) !== null) {
     if (/response|result|output/i.test(match[1])) {
-      const typeProps = match[2].split(/[;\n]/).map((p) => p.trim().split(/[?:]/)[0].trim()).filter(Boolean);
+      const typeProps = match[2]
+        .split(/[;\n]/)
+        .map((p) => p.trim().split(/[?:]/)[0].trim())
+        .filter(Boolean);
       properties.push(...typeProps);
     }
   }
@@ -428,14 +437,20 @@ async function extractServiceTypes(filePath: string): Promise<TypeLink | null> {
   TYPE_DEF_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = TYPE_DEF_REGEX.exec(content)) !== null) {
-    const typeProps = match[2].split(/[;\n]/).map((p) => p.trim().split(/[?:]/)[0].trim()).filter(Boolean);
+    const typeProps = match[2]
+      .split(/[;\n]/)
+      .map((p) => p.trim().split(/[?:]/)[0].trim())
+      .filter(Boolean);
     properties.push(...typeProps);
   }
 
   // Extract from return statements in exported functions
   const returns = content.matchAll(/return\s*\{([^}]+)\}/g);
   for (const ret of returns) {
-    const props = ret[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = ret[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
@@ -459,7 +474,10 @@ async function extractRepoTypes(filePath: string): Promise<TypeLink | null> {
   // Extract select/include fields from Prisma/Drizzle queries
   const selectMatch = content.match(/select\s*:\s*\{([^}]+)\}/);
   if (selectMatch) {
-    const props = selectMatch[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = selectMatch[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
@@ -467,7 +485,10 @@ async function extractRepoTypes(filePath: string): Promise<TypeLink | null> {
   TYPE_DEF_REGEX.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = TYPE_DEF_REGEX.exec(content)) !== null) {
-    const typeProps = match[2].split(/[;\n]/).map((p) => p.trim().split(/[?:]/)[0].trim()).filter(Boolean);
+    const typeProps = match[2]
+      .split(/[;\n]/)
+      .map((p) => p.trim().split(/[?:]/)[0].trim())
+      .filter(Boolean);
     properties.push(...typeProps);
   }
 
@@ -485,7 +506,7 @@ async function extractRepoTypes(filePath: string): Promise<TypeLink | null> {
 function extractFrontendTypes(
   content: string,
   filePath: string,
-  routeUrl: string,
+  _routeUrl: string,
 ): TypeLink | null {
   const properties: string[] = [];
 
@@ -499,11 +520,14 @@ function extractFrontendTypes(
   // Extract destructuring: const { user, posts } = await data
   DESTRUCTURE_REGEX.lastIndex = 0;
   while ((match = DESTRUCTURE_REGEX.exec(content)) !== null) {
-    const props = match[1].split(",").map((p) => {
-      const trimmed = p.trim();
-      // Handle renaming: originalName: newName
-      return trimmed.split(":")[0].trim();
-    }).filter(Boolean);
+    const props = match[1]
+      .split(",")
+      .map((p) => {
+        const trimmed = p.trim();
+        // Handle renaming: originalName: newName
+        return trimmed.split(":")[0].trim();
+      })
+      .filter(Boolean);
     properties.push(...props);
   }
 
@@ -524,21 +548,30 @@ function extractDBProperties(content: string): string[] {
   // Prisma select fields
   const selectMatches = content.matchAll(/select\s*:\s*\{([^}]+)\}/g);
   for (const match of selectMatches) {
-    const props = match[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = match[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
   // Prisma include fields
   const includeMatches = content.matchAll(/include\s*:\s*\{([^}]+)\}/g);
   for (const match of includeMatches) {
-    const props = match[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = match[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
   // Drizzle select fields
   const drizzleSelect = content.matchAll(/\.select\s*\(\s*\{([^}]+)\}/g);
   for (const match of drizzleSelect) {
-    const props = match[1].split(",").map((p) => p.trim().split(":")[0].trim()).filter(Boolean);
+    const props = match[1]
+      .split(",")
+      .map((p) => p.trim().split(":")[0].trim())
+      .filter(Boolean);
     properties.push(...props);
   }
 
@@ -552,7 +585,8 @@ function extractDBProperties(content: string): string[] {
 async function safeReadFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf-8");
-  } catch { /* skip: unreadable file */
+  } catch {
+    /* skip: unreadable file */
     return null;
   }
 }

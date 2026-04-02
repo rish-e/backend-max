@@ -3,37 +3,40 @@
 // =============================================================================
 
 import { join } from "node:path";
+import { runSafetyChecks, sanitizeForDisk } from "../safety/index.js";
 import type {
+  ContractResult,
   DiagnosisReport,
   Issue,
-  ScanResult,
-  ContractResult,
   ProjectContext,
+  ScanResult,
 } from "../types.js";
-import { scanRoutes } from "./route-scanner.js";
+import {
+  calculateHealthScore,
+  ensureDir,
+  generateIssueId,
+  getTimestamp,
+  writeJson,
+} from "../utils/helpers.js";
+import { auditApiVersioning } from "./api-versioning-auditor.js";
+import { getContext, initContext } from "./context-manager.js";
 import { checkContracts } from "./contract-checker.js";
-import { auditErrorHandling } from "./error-auditor.js";
+import { scanDependencies } from "./dep-scanner.js";
+import { generateDocs } from "./doc-generator.js";
 import { scanEnvVars } from "./env-scanner.js";
-import { auditSecurity } from "./security-auditor.js";
+import { auditErrorHandling } from "./error-auditor.js";
+import { updateLedger } from "./ledger-manager.js";
+import { visualizeMiddleware } from "./middleware-visualizer.js";
+import { getProjectInsights, trackPatterns } from "./pattern-tracker.js";
 import { auditPerformance } from "./performance-auditor.js";
 import { auditPrisma } from "./prisma-auditor.js";
-import { auditServerActions } from "./server-actions-auditor.js";
-import { scanDependencies } from "./dep-scanner.js";
 import { auditRateLimitAndCaching } from "./rate-limit-auditor.js";
-import { auditApiVersioning } from "./api-versioning-auditor.js";
-import { visualizeMiddleware } from "./middleware-visualizer.js";
-import { generateDocs } from "./doc-generator.js";
-import { updateLedger } from "./ledger-manager.js";
-import { initContext, getContext } from "./context-manager.js";
-import {
-  ensureDir,
-  writeJson,
-  generateIssueId,
-  calculateHealthScore,
-  getTimestamp,
-} from "../utils/helpers.js";
-import { runSafetyChecks, sanitizeForDisk, enforceLimits } from "../safety/index.js";
-import { trackPatterns, getProjectInsights } from "./pattern-tracker.js";
+import { scanRoutes } from "./route-scanner.js";
+import { auditSecurity } from "./security-auditor.js";
+import { auditServerActions } from "./server-actions-auditor.js";
+import { auditSecrets } from "./secrets-auditor.js";
+import { auditMigrations } from "./migration-auditor.js";
+import { auditGraphQL } from "./graphql-auditor.js";
 
 /** Directory where backend-max stores its state. */
 const STATE_DIR = ".backend-doctor";
@@ -44,7 +47,23 @@ const REPORTS_DIR = "reports";
 // Focus area configuration
 // ---------------------------------------------------------------------------
 
-type FocusArea = "all" | "routes" | "contracts" | "errors" | "env" | "security" | "performance" | "prisma" | "server-actions" | "dependencies" | "rate-limiting" | "versioning" | "middleware";
+type FocusArea =
+  | "all"
+  | "routes"
+  | "contracts"
+  | "errors"
+  | "env"
+  | "security"
+  | "performance"
+  | "prisma"
+  | "server-actions"
+  | "dependencies"
+  | "rate-limiting"
+  | "versioning"
+  | "middleware"
+  | "secrets"
+  | "migrations"
+  | "graphql";
 
 /**
  * Determines which audits to run based on the focus parameter.
@@ -99,7 +118,9 @@ export async function runFullDiagnosis(
         database: null,
         auth: null,
         domains: [],
-        notes: [`Safety check blocked this scan: ${safetyResult.pathValidation.reason ?? "Unknown"}`],
+        notes: [
+          `Safety check blocked this scan: ${safetyResult.pathValidation.reason ?? "Unknown"}`,
+        ],
       },
     };
   }
@@ -108,7 +129,8 @@ export async function runFullDiagnosis(
   let context: ProjectContext;
   try {
     context = await getContext(projectPath);
-  } catch { /* No existing context — initialize fresh */
+  } catch {
+    /* No existing context — initialize fresh */
     context = await initContext(projectPath);
   }
 
@@ -161,7 +183,9 @@ export async function runFullDiagnosis(
           fixedAt: null,
         });
       }
-    } catch { /* skip: contract check failure — non-fatal (e.g., no frontend code) */ }
+    } catch (e) {
+      console.error("[orchestrator] Contract check skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Error handling audit
@@ -171,7 +195,9 @@ export async function runFullDiagnosis(
       if (Array.isArray(errorIssues)) {
         allIssues.push(...errorIssues);
       }
-    } catch { /* skip: error audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Error audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Environment variable audit
@@ -181,7 +207,9 @@ export async function runFullDiagnosis(
       if (Array.isArray(envIssues)) {
         allIssues.push(...envIssues);
       }
-    } catch { /* skip: env audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Env audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Security audit
@@ -191,7 +219,9 @@ export async function runFullDiagnosis(
       if (Array.isArray(secIssues)) {
         allIssues.push(...secIssues);
       }
-    } catch { /* skip: security audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Security audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Performance audit
@@ -201,7 +231,12 @@ export async function runFullDiagnosis(
       if (perfResult && Array.isArray(perfResult.issues)) {
         allIssues.push(...perfResult.issues);
       }
-    } catch { /* skip: performance audit failure — non-fatal */ }
+    } catch (e) {
+      console.error(
+        "[orchestrator] Performance audit skipped:",
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
 
   // Prisma audit
@@ -211,7 +246,9 @@ export async function runFullDiagnosis(
       if (prismaResult && Array.isArray(prismaResult.issues)) {
         allIssues.push(...prismaResult.issues);
       }
-    } catch { /* skip: prisma audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Prisma audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Server actions audit
@@ -221,7 +258,12 @@ export async function runFullDiagnosis(
       if (saResult && Array.isArray(saResult.issues)) {
         allIssues.push(...saResult.issues);
       }
-    } catch { /* skip: server actions audit failure — non-fatal */ }
+    } catch (e) {
+      console.error(
+        "[orchestrator] Server actions audit skipped:",
+        e instanceof Error ? e.message : e,
+      );
+    }
   }
 
   // Dependency vulnerability scan
@@ -231,7 +273,9 @@ export async function runFullDiagnosis(
       if (depResult && Array.isArray(depResult.issues)) {
         allIssues.push(...depResult.issues);
       }
-    } catch { /* skip: dependency scan failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Dependency scan skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Rate limiting & caching audit
@@ -241,7 +285,9 @@ export async function runFullDiagnosis(
       if (rlResult && Array.isArray(rlResult.issues)) {
         allIssues.push(...rlResult.issues);
       }
-    } catch { /* skip: rate-limit audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Rate-limit audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // API versioning audit
@@ -251,7 +297,45 @@ export async function runFullDiagnosis(
       if (verResult && Array.isArray(verResult.issues)) {
         allIssues.push(...verResult.issues);
       }
-    } catch { /* skip: versioning audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Versioning audit skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Secrets scan (always run with security or "all")
+  if (shouldRun(focusArea, "secrets") || shouldRun(focusArea, "security")) {
+    try {
+      const secretsResult = await auditSecrets(projectPath);
+      if (secretsResult && Array.isArray(secretsResult.issues)) {
+        allIssues.push(...secretsResult.issues);
+      }
+    } catch (e) {
+      console.error("[orchestrator] Secrets audit skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // Migration audit (always run with prisma or "all")
+  if (shouldRun(focusArea, "migrations") || shouldRun(focusArea, "prisma")) {
+    try {
+      const migResult = await auditMigrations(projectPath);
+      if (migResult && Array.isArray(migResult.issues)) {
+        allIssues.push(...migResult.issues);
+      }
+    } catch (e) {
+      console.error("[orchestrator] Migration audit skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  // GraphQL security audit
+  if (shouldRun(focusArea, "graphql") || shouldRun(focusArea, "security")) {
+    try {
+      const gqlResult = await auditGraphQL(projectPath);
+      if (gqlResult && Array.isArray(gqlResult.issues)) {
+        allIssues.push(...gqlResult.issues);
+      }
+    } catch (e) {
+      console.error("[orchestrator] GraphQL audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // Middleware chain visualization
@@ -261,7 +345,9 @@ export async function runFullDiagnosis(
       if (mwResult && Array.isArray(mwResult.issues)) {
         allIssues.push(...mwResult.issues);
       }
-    } catch { /* skip: middleware audit failure — non-fatal */ }
+    } catch (e) {
+      console.error("[orchestrator] Middleware audit skipped:", e instanceof Error ? e.message : e);
+    }
   }
 
   // 3. Assign deterministic IDs to issues that don't have one
@@ -277,15 +363,21 @@ export async function runFullDiagnosis(
   // 5. Update the ledger
   try {
     await updateLedger(projectPath, allIssues);
-  } catch { /* skip: ledger update failure — non-fatal */ }
+  } catch (e) {
+    console.error("[orchestrator] Ledger update failed:", e instanceof Error ? e.message : e);
+  }
 
   // 6. Generate documentation
   try {
     await generateDocs(projectPath);
-  } catch { /* skip: doc generation failure — non-fatal */ }
+  } catch (e) {
+    console.error("[orchestrator] Doc generation failed:", e instanceof Error ? e.message : e);
+  }
 
   // 7. Build summary
-  const criticalCount = allIssues.filter((i) => i.severity === "critical" || i.severity === "bug").length;
+  const criticalCount = allIssues.filter(
+    (i) => i.severity === "critical" || i.severity === "bug",
+  ).length;
   const warningCount = allIssues.filter((i) => i.severity === "warning").length;
   const infoCount = allIssues.filter((i) => i.severity === "info").length;
   const routeCount = scanResult?.summary.totalRoutes ?? 0;
@@ -308,9 +400,11 @@ export async function runFullDiagnosis(
     await trackPatterns(allIssues, context);
     const insights = await getProjectInsights(allIssues);
     if (insights.length > 0) {
-      summaryParts.push("Pattern insights: " + insights.join(" "));
+      summaryParts.push(`Pattern insights: ${insights.join(" ")}`);
     }
-  } catch { /* skip: pattern tracking failure — non-fatal */ }
+  } catch (e) {
+    console.error("[orchestrator] Pattern tracking failed:", e instanceof Error ? e.message : e);
+  }
 
   const report: DiagnosisReport = {
     timestamp,
@@ -330,7 +424,9 @@ export async function runFullDiagnosis(
     const safeTimestamp = timestamp.replace(/[:.]/g, "-");
     const sanitizedReport = sanitizeForDisk(report);
     await writeJson(join(reportsDir, `${safeTimestamp}.json`), sanitizedReport);
-  } catch { /* skip: report save failure — non-fatal */ }
+  } catch (e) {
+    console.error("[orchestrator] Report save failed:", e instanceof Error ? e.message : e);
+  }
 
   return report;
 }

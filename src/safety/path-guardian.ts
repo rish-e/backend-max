@@ -4,9 +4,9 @@
  * and access to files outside the project boundary.
  */
 
-import { existsSync, realpathSync, statSync, readFileSync } from "node:fs";
-import { resolve, relative, basename, extname } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
+import { basename, extname, relative, resolve } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -61,23 +61,10 @@ const BLOCKED_PROJECT_DIRS: string[] = [
 ];
 
 /** Directories that are never writable. */
-const NO_WRITE_DIRS: string[] = [
-  "node_modules/",
-  ".git/",
-  "dist/",
-  "build/",
-  ".next/",
-];
+const NO_WRITE_DIRS: string[] = ["node_modules/", ".git/", "dist/", "build/", ".next/"];
 
 /** File extensions allowed for writes. */
-const WRITABLE_EXTENSIONS: Set<string> = new Set([
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-]);
+const WRITABLE_EXTENSIONS: Set<string> = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
 /** Config files in project root that must not be written. */
 const ROOT_CONFIG_FILES: Set<string> = new Set([
@@ -153,9 +140,7 @@ function matchesBlockedPattern(fileName: string, pattern: string): boolean {
  * @param projectPath - The path to validate.
  * @returns An object with `valid` boolean and optional `reason` for rejection.
  */
-export function validateProjectPath(
-  projectPath: string,
-): { valid: boolean; reason?: string } {
+export function validateProjectPath(projectPath: string): { valid: boolean; reason?: string } {
   try {
     const resolved = resolveFull(projectPath);
 
@@ -181,7 +166,7 @@ export function validateProjectPath(
 
     // Must not be a system directory
     for (const sysDir of SYSTEM_DIRS) {
-      if (resolved === sysDir || resolved.startsWith(sysDir + "/")) {
+      if (resolved === sysDir || resolved.startsWith(`${sysDir}/`)) {
         return {
           valid: false,
           reason: `Cannot scan system directory: ${sysDir}`,
@@ -194,8 +179,8 @@ export function validateProjectPath(
     for (const blocked of BLOCKED_PATHS) {
       if (
         relToHome === blocked ||
-        relToHome.startsWith(blocked + "/") ||
-        resolved.endsWith("/" + blocked)
+        relToHome.startsWith(`${blocked}/`) ||
+        resolved.endsWith(`/${blocked}`)
       ) {
         // Special case for .npmrc: only block if it contains authToken
         if (blocked === ".npmrc") {
@@ -250,7 +235,7 @@ export function isAllowedFile(filePath: string, projectPath: string): boolean {
 
     // Check blocked directories within the project
     for (const blockedDir of BLOCKED_PROJECT_DIRS) {
-      if (rel.startsWith(blockedDir) || rel.includes("/" + blockedDir)) {
+      if (rel.startsWith(blockedDir) || rel.includes(`/${blockedDir}`)) {
         return false;
       }
     }
@@ -297,7 +282,7 @@ export function isWriteSafe(filePath: string, projectPath: string): boolean {
 
     // Must not be in a no-write directory
     for (const dir of NO_WRITE_DIRS) {
-      if (rel.startsWith(dir) || rel.includes("/" + dir)) {
+      if (rel.startsWith(dir) || rel.includes(`/${dir}`)) {
         return false;
       }
     }

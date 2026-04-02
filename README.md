@@ -105,37 +105,98 @@ Existing tools catch syntax errors and type mismatches. **Backend Max catches th
 
 ## 🚀 Quick Start
 
-### 1. Install
+### Install with your MCP client
+
+<details>
+<summary><strong>Claude Code (recommended)</strong></summary>
 
 ```bash
-git clone https://github.com/rish-e/backend-max.git
-cd backend-max
-npm install
-npm run build
+claude mcp add backend-max -- npx -y backend-max
 ```
 
-### 2. Configure with Claude Code
+Done. Open any project and type `/backendmax run a full diagnosis`.
 
-Add to your Claude Code MCP settings (`.claude/settings.json` or project-level):
+</details>
 
-```jsonc
+<details>
+<summary><strong>Claude Desktop</strong></summary>
+
+Add to your `claude_desktop_config.json`:
+
+```json
 {
   "mcpServers": {
     "backend-max": {
-      "command": "node",
-      "args": ["/path/to/backend-max/dist/index.js"],
-      "transport": "stdio"
+      "command": "npx",
+      "args": ["-y", "backend-max"]
     }
   }
 }
 ```
 
-### 3. Run Your First Diagnosis
+</details>
 
-Open Claude Code in any project and type:
+<details>
+<summary><strong>VS Code / Cursor</strong></summary>
+
+Add to `.vscode/settings.json`:
+
+```json
+{
+  "mcp.servers": {
+    "backend-max": {
+      "command": "npx",
+      "args": ["-y", "backend-max"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Add to your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "backend-max": {
+      "command": "npx",
+      "args": ["-y", "backend-max"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>From source (for development)</strong></summary>
+
+```bash
+git clone https://github.com/rish-e/backend-max.git
+cd backend-max
+npm install && npm run build
+```
+
+Then add to your MCP client config:
+```json
+{
+  "command": "node",
+  "args": ["/path/to/backend-max/dist/server.js"]
+}
+```
+
+</details>
+
+### Run Your First Diagnosis
+
+Open your MCP client in any project and ask:
 
 ```
-/doctor
+/backendmax run a full diagnosis on my project
 ```
 
 That's it. Backend Max will analyze your project and return a full diagnostic report with health score, issues, and fix suggestions.

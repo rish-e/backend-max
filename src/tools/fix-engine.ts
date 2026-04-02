@@ -4,8 +4,8 @@
 
 import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import type { LedgerEntry, Issue } from "../types.js";
-import { readJsonSafe, writeJson } from "../utils/helpers.js";
+import type { LedgerEntry } from "../types.js";
+import { readJsonSafe } from "../utils/helpers.js";
 
 /** Directory where backend-max stores its state. */
 const STATE_DIR = ".backend-doctor";
@@ -48,10 +48,7 @@ export interface FixResult {
  * @param issueId     - The deterministic issue ID (e.g. "ERR-a1b2c3").
  * @returns A FixResult with the patch.
  */
-export async function fixIssue(
-  projectPath: string,
-  issueId: string,
-): Promise<FixResult> {
+export async function fixIssue(projectPath: string, issueId: string): Promise<FixResult> {
   const ledgerFilePath = join(projectPath, STATE_DIR, LEDGER_FILE);
   const ledger = await readJsonSafe<LedgerEntry[]>(ledgerFilePath, []);
 
@@ -101,15 +98,11 @@ export async function fixIssue(
  * @param projectPath - Absolute path to the project root.
  * @returns Array of FixResults, one per open issue.
  */
-export async function fixAllIssues(
-  projectPath: string,
-): Promise<FixResult[]> {
+export async function fixAllIssues(projectPath: string): Promise<FixResult[]> {
   const ledgerFilePath = join(projectPath, STATE_DIR, LEDGER_FILE);
   const ledger = await readJsonSafe<LedgerEntry[]>(ledgerFilePath, []);
 
-  const openIssues = ledger.filter(
-    (e) => e.status === "open" || e.status === "regressed",
-  );
+  const openIssues = ledger.filter((e) => e.status === "open" || e.status === "regressed");
 
   if (openIssues.length === 0) {
     return [
@@ -141,10 +134,7 @@ interface PatchOutput {
 /**
  * Attempts to generate a unified diff patch for the given issue.
  */
-async function generatePatch(
-  projectPath: string,
-  entry: LedgerEntry,
-): Promise<PatchOutput | null> {
+async function generatePatch(projectPath: string, entry: LedgerEntry): Promise<PatchOutput | null> {
   try {
     const sourceContent = await readFile(entry.file, "utf-8");
     const lines = sourceContent.split("\n");
@@ -166,7 +156,8 @@ async function generatePatch(
       default:
         return null;
     }
-  } catch { /* skip: unable to read/parse source file */
+  } catch {
+    /* skip: unable to read/parse source file */
     return null;
   }
 }
@@ -214,7 +205,7 @@ function generateErrorHandlingPatch(
   // Get the indentation of the function body
   const bodyLine = lines[braceIdx + 1] ?? "";
   const baseIndent = bodyLine.match(/^(\s*)/)?.[1] ?? "  ";
-  const innerIndent = baseIndent + "  ";
+  const innerIndent = `${baseIndent}  `;
 
   // Build the patched lines
   const originalBody = lines.slice(braceIdx + 1, closingBraceIdx);
@@ -239,8 +230,7 @@ function generateErrorHandlingPatch(
       originalBody,
       wrappedBody,
     ),
-    description:
-      "Wraps the handler body in a try/catch block with structured error response.",
+    description: "Wraps the handler body in a try/catch block with structured error response.",
   };
 }
 
@@ -402,7 +392,7 @@ function generatePerformancePatch(
 
   // Detect findMany without take/limit
   if (/findMany\s*\(/.test(line) && !/take\s*:/.test(line)) {
-    const indent = line.match(/^(\s*)/)?.[1] ?? "";
+    const _indent = line.match(/^(\s*)/)?.[1] ?? "";
 
     // Find the closing of the findMany call
     let endIdx = lineIdx;

@@ -5,23 +5,32 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { glob } from "glob";
-import type { RouteInfo, MethodInfo, Issue } from "../types.js";
+import { Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
+import type { Issue, MethodInfo, RouteInfo } from "../types.js";
 import type { FrameworkAnalyzer, FrameworkCheck } from "./framework-interface.js";
 import {
   createProject,
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
   detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
 } from "./typescript.js";
-import { Node, SyntaxKind, type SourceFile, type Project } from "ts-morph";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 /** Fastify HTTP methods we scan for. */
-const FASTIFY_METHODS = ["get", "post", "put", "delete", "patch", "head", "options", "all"] as const;
+const FASTIFY_METHODS = [
+  "get",
+  "post",
+  "put",
+  "delete",
+  "patch",
+  "head",
+  "options",
+  "all",
+] as const;
 
 /** Patterns that indicate Fastify route definitions. */
 const ROUTE_CALL_REGEX = new RegExp(
@@ -30,13 +39,14 @@ const ROUTE_CALL_REGEX = new RegExp(
 );
 
 /** Pattern for Fastify route shorthand with schema. */
-const SCHEMA_ROUTE_REGEX = /\.(?:get|post|put|delete|patch)\s*\(\s*['"`][^'"`]+['"`]\s*,\s*\{[^}]*schema\s*:/;
+const _SCHEMA_ROUTE_REGEX =
+  /\.(?:get|post|put|delete|patch)\s*\(\s*['"`][^'"`]+['"`]\s*,\s*\{[^}]*schema\s*:/;
 
 /** Pattern for Fastify plugin registration. */
-const PLUGIN_REGEX = /(?:fastify|app|server)\.register\s*\(/g;
+const _PLUGIN_REGEX = /(?:fastify|app|server)\.register\s*\(/g;
 
 /** Pattern for route prefix in plugin opts. */
-const PREFIX_REGEX = /prefix\s*:\s*['"`]([^'"`]+)['"`]/;
+const _PREFIX_REGEX = /prefix\s*:\s*['"`]([^'"`]+)['"`]/;
 
 // ---------------------------------------------------------------------------
 // Fastify Analyzer
@@ -56,10 +66,12 @@ async function detect(projectPath: string): Promise<boolean> {
     const raw = await readFile(join(projectPath, "package.json"), "utf-8");
     const pkg = JSON.parse(raw);
     if (!pkg || typeof pkg !== "object") return false;
-    const deps = (pkg.dependencies && typeof pkg.dependencies === "object") ? pkg.dependencies : {};
-    const devDeps = (pkg.devDependencies && typeof pkg.devDependencies === "object") ? pkg.devDependencies : {};
+    const deps = pkg.dependencies && typeof pkg.dependencies === "object" ? pkg.dependencies : {};
+    const devDeps =
+      pkg.devDependencies && typeof pkg.devDependencies === "object" ? pkg.devDependencies : {};
     return "fastify" in deps || "fastify" in devDeps;
-  } catch { /* skip: unreadable/unparseable package.json */
+  } catch {
+    /* skip: unreadable/unparseable package.json */
     return false;
   }
 }
@@ -70,9 +82,14 @@ async function scanFastifyRoutes(projectPath: string): Promise<RouteInfo[]> {
     absolute: true,
     nodir: true,
     ignore: [
-      "**/node_modules/**", "**/dist/**", "**/build/**",
-      "**/.next/**", "**/coverage/**", "**/*.test.*",
-      "**/*.spec.*", "**/__tests__/**",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/coverage/**",
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/__tests__/**",
     ],
   });
 
@@ -85,7 +102,9 @@ async function scanFastifyRoutes(projectPath: string): Promise<RouteInfo[]> {
       if (ROUTE_CALL_REGEX.test(content)) {
         routeFiles.push({ filePath, content });
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   if (routeFiles.length === 0) return [];
@@ -97,7 +116,9 @@ async function scanFastifyRoutes(projectPath: string): Promise<RouteInfo[]> {
     try {
       const routes = analyzeFastifyFile(filePath, content, project);
       allRoutes.push(...routes);
-    } catch { /* skip: unparseable file */ }
+    } catch {
+      /* skip: unparseable file */
+    }
   }
 
   allRoutes.sort((a, b) => a.url.localeCompare(b.url));
@@ -108,15 +129,12 @@ async function scanFastifyRoutes(projectPath: string): Promise<RouteInfo[]> {
 // Per-file analysis
 // ---------------------------------------------------------------------------
 
-function analyzeFastifyFile(
-  filePath: string,
-  content: string,
-  project: Project,
-): RouteInfo[] {
+function analyzeFastifyFile(filePath: string, _content: string, project: Project): RouteInfo[] {
   let sourceFile: SourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
-  } catch { /* skip: unparseable file */
+  } catch {
+    /* skip: unparseable file */
     return [];
   }
 
@@ -142,7 +160,7 @@ function analyzeFastifyFile(
     let urlPattern = firstArg.getText().replace(/^['"`]|['"`]$/g, "");
     if (urlPattern.startsWith("(") || urlPattern.startsWith("{")) continue;
 
-    if (!urlPattern.startsWith("/")) urlPattern = "/" + urlPattern;
+    if (!urlPattern.startsWith("/")) urlPattern = `/${urlPattern}`;
 
     const httpMethod = methodName === "all" ? "ALL" : methodName.toUpperCase();
 
@@ -174,7 +192,7 @@ function analyzeFastifyFile(
     if (!routeMap.has(urlPattern)) {
       routeMap.set(urlPattern, []);
     }
-    routeMap.get(urlPattern)!.push(methodInfo);
+    routeMap.get(urlPattern)?.push(methodInfo);
   }
 
   const routes: RouteInfo[] = [];
@@ -212,13 +230,15 @@ function getFrameworkChecks(): FrameworkCheck[] {
     {
       id: "fastify-missing-schema-validation",
       name: "Route without Fastify schema validation",
-      description: "Fastify supports built-in JSON Schema validation via the schema option. Routes with mutation methods should use it.",
+      description:
+        "Fastify supports built-in JSON Schema validation via the schema option. Routes with mutation methods should use it.",
       check: checkMissingSchemaValidation,
     },
     {
       id: "fastify-missing-error-handler",
       name: "Missing custom error handler",
-      description: "Fastify apps should set a custom error handler with setErrorHandler() for production-ready error responses.",
+      description:
+        "Fastify apps should set a custom error handler with setErrorHandler() for production-ready error responses.",
       check: checkMissingErrorHandler,
     },
     {
@@ -245,7 +265,8 @@ async function checkMissingSchemaValidation(
           category: "validation",
           severity: "warning",
           title: `Fastify route without schema validation: ${method.method} ${route.url}`,
-          description: "This mutation route doesn't use Fastify's built-in schema validation. Add a schema option with body/params/querystring definitions.",
+          description:
+            "This mutation route doesn't use Fastify's built-in schema validation. Add a schema option with body/params/querystring definitions.",
           file: route.filePath,
           line: method.lineNumber,
           status: "open",
@@ -272,24 +293,24 @@ async function checkMissingErrorHandler(
 
   if (entryFiles.length === 0) return [];
 
-  return [{
-    id: "",
-    category: "error-handling",
-    severity: "warning",
-    title: "Missing Fastify custom error handler",
-    description: "No setErrorHandler() found. Add a custom error handler for production-ready error responses.",
-    file: entryFiles[0].filePath,
-    line: null,
-    status: "open",
-    firstSeen: timestamp,
-    fixedAt: null,
-  }];
+  return [
+    {
+      id: "",
+      category: "error-handling",
+      severity: "warning",
+      title: "Missing Fastify custom error handler",
+      description:
+        "No setErrorHandler() found. Add a custom error handler for production-ready error responses.",
+      file: entryFiles[0].filePath,
+      line: null,
+      status: "open",
+      firstSeen: timestamp,
+      fixedAt: null,
+    },
+  ];
 }
 
-async function checkMissing404Handler(
-  projectPath: string,
-  _routes: RouteInfo[],
-): Promise<Issue[]> {
+async function checkMissing404Handler(projectPath: string, _routes: RouteInfo[]): Promise<Issue[]> {
   const entryFiles = await findFastifyEntryFiles(projectPath);
   const timestamp = new Date().toISOString();
 
@@ -299,21 +320,26 @@ async function checkMissing404Handler(
 
   if (entryFiles.length === 0) return [];
 
-  return [{
-    id: "",
-    category: "error-handling",
-    severity: "info",
-    title: "Missing Fastify 404 handler",
-    description: "No setNotFoundHandler() found. Add a custom 404 handler instead of relying on Fastify's default.",
-    file: entryFiles[0].filePath,
-    line: null,
-    status: "open",
-    firstSeen: timestamp,
-    fixedAt: null,
-  }];
+  return [
+    {
+      id: "",
+      category: "error-handling",
+      severity: "info",
+      title: "Missing Fastify 404 handler",
+      description:
+        "No setNotFoundHandler() found. Add a custom 404 handler instead of relying on Fastify's default.",
+      file: entryFiles[0].filePath,
+      line: null,
+      status: "open",
+      firstSeen: timestamp,
+      fixedAt: null,
+    },
+  ];
 }
 
-async function findFastifyEntryFiles(projectPath: string): Promise<Array<{ filePath: string; content: string }>> {
+async function findFastifyEntryFiles(
+  projectPath: string,
+): Promise<Array<{ filePath: string; content: string }>> {
   const candidates = await glob(
     "{app,server,index,main,src/app,src/server,src/index,src/main}.{ts,js}",
     { cwd: projectPath, absolute: true, nodir: true },
@@ -324,7 +350,9 @@ async function findFastifyEntryFiles(projectPath: string): Promise<Array<{ fileP
     try {
       const content = await readFile(filePath, "utf-8");
       if (/fastify/i.test(content)) results.push({ filePath, content });
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return results;

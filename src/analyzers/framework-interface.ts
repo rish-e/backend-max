@@ -2,7 +2,7 @@
 // backend-max — Framework Analyzer Interface
 // =============================================================================
 
-import type { RouteInfo, Issue } from "../types.js";
+import type { Issue, RouteInfo } from "../types.js";
 
 /**
  * Framework Analyzer Interface.

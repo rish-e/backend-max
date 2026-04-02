@@ -8,30 +8,21 @@
 
 import { glob } from "glob";
 import {
-  Node,
-  SyntaxKind,
+  type ArrowFunction,
   type FunctionDeclaration,
   type FunctionExpression,
-  type ArrowFunction,
+  Node,
   type SourceFile,
-  type CallExpression,
+  SyntaxKind,
 } from "ts-morph";
-import type { Issue, IssueCategory, Severity } from "../types.js";
 import { createProject } from "../analyzers/typescript.js";
+import type { Issue, IssueCategory, Severity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const HTTP_METHODS = new Set([
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-  "HEAD",
-  "OPTIONS",
-]);
+const HTTP_METHODS = new Set(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]);
 
 const ROUTE_FILE_PATTERNS = [
   "app/**/route.ts",
@@ -163,8 +154,8 @@ export async function auditErrorHandling(projectPath: string): Promise<{
             `Missing try/catch in ${handler.name}`,
             `Handler "${handler.name}" in ${relFile} does not wrap its logic in a try/catch block. Unhandled errors will crash the request.`,
             handler.file,
-            handler.line
-          )
+            handler.line,
+          ),
         );
       }
 
@@ -178,8 +169,8 @@ export async function auditErrorHandling(projectPath: string): Promise<{
             `Catch block without response in ${handler.name}`,
             `Handler "${handler.name}" in ${relFile} has a catch block that does not return an error response. The client will hang or receive an unexpected result.`,
             handler.file,
-            handler.line
-          )
+            handler.line,
+          ),
         );
       }
 
@@ -193,8 +184,8 @@ export async function auditErrorHandling(projectPath: string): Promise<{
             `Unhandled promise chain in ${handler.name}`,
             `Handler "${handler.name}" in ${relFile} has ${handler.unhandledPromiseChains} .then() call(s) without a corresponding .catch(). Promise rejections will be unhandled.`,
             handler.file,
-            handler.line
-          )
+            handler.line,
+          ),
         );
       }
 
@@ -209,10 +200,7 @@ export async function auditErrorHandling(projectPath: string): Promise<{
     }
 
     // Check error response consistency.
-    const consistentFormat = checkResponseConsistency(
-      errorResponseShapes,
-      issues
-    );
+    const consistentFormat = checkResponseConsistency(errorResponseShapes, issues);
 
     const withErrorHandling = handlers.filter((h) => h.hasTryCatch).length;
 
@@ -235,7 +223,7 @@ export async function auditErrorHandling(projectPath: string): Promise<{
           "Error auditor encountered an internal error",
           `The error auditor failed to complete: ${error instanceof Error ? error.message : String(error)}`,
           projectPath,
-          null
+          null,
         ),
       ],
       summary: {
@@ -256,9 +244,7 @@ export async function auditErrorHandling(projectPath: string): Promise<{
  * Handles both `export async function GET(...)` and
  * `export const GET = async (...)` patterns.
  */
-function extractHandlers(
-  sourceFile: SourceFile
-): { name: string; node: HandlerNode }[] {
+function extractHandlers(sourceFile: SourceFile): { name: string; node: HandlerNode }[] {
   const results: { name: string; node: HandlerNode }[] = [];
 
   // Named function exports: export async function GET(...)
@@ -303,15 +289,9 @@ function extractHandlers(
 /**
  * Analyse a single handler node for error handling patterns.
  */
-function analyseHandler(
-  node: HandlerNode,
-  name: string,
-  filePath: string
-): HandlerInfo {
+function analyseHandler(node: HandlerNode, name: string, filePath: string): HandlerInfo {
   const line = node.getStartLineNumber();
-  const body = Node.isArrowFunction(node)
-    ? node.getBody()
-    : node.getBody();
+  const body = Node.isArrowFunction(node) ? node.getBody() : node.getBody();
 
   const info: HandlerInfo = {
     name,
@@ -389,9 +369,7 @@ function extractErrorResponseShape(catchClause: Node): string | null {
   // Look for JSON response patterns like: { error: ..., message: ... }
   // NextResponse.json({ error: ... }, { status: ... })
   // Response.json({ error: ... })
-  const jsonMatch = text.match(
-    /(?:NextResponse|Response)\.json\s*\(\s*(\{[^}]*\})/
-  );
+  const jsonMatch = text.match(/(?:NextResponse|Response)\.json\s*\(\s*(\{[^}]*\})/);
   if (jsonMatch) {
     // Extract the key names to compare shapes.
     const keys = jsonMatch[1].match(/(\w+)\s*:/g);
@@ -414,9 +392,7 @@ function extractErrorResponseShape(catchClause: Node): string | null {
  */
 function countUnhandledPromiseChains(body: Node): number {
   let count = 0;
-  const callExpressions = body.getDescendantsOfKind(
-    SyntaxKind.CallExpression
-  );
+  const callExpressions = body.getDescendantsOfKind(SyntaxKind.CallExpression);
 
   for (const call of callExpressions) {
     const propAccess = call.getExpression();
@@ -433,10 +409,8 @@ function countUnhandledPromiseChains(body: Node): number {
 
       // Also check the broader chain: look for .catch anywhere on the
       // same statement.
-      const statement = call.getFirstAncestorByKind(
-        SyntaxKind.ExpressionStatement
-      );
-      if (statement && statement.getText().includes(".catch(")) {
+      const statement = call.getFirstAncestorByKind(SyntaxKind.ExpressionStatement);
+      if (statement?.getText().includes(".catch(")) {
         hasCatch = true;
       }
 
@@ -455,10 +429,7 @@ function countUnhandledPromiseChains(body: Node): number {
  * Check whether all error responses use a consistent shape. If not, generate
  * warning issues.
  */
-function checkResponseConsistency(
-  shapes: ErrorResponseShape[],
-  issues: Issue[]
-): boolean {
+function checkResponseConsistency(shapes: ErrorResponseShape[], issues: Issue[]): boolean {
   if (shapes.length <= 1) return true;
 
   const uniqueShapes = new Map<string, ErrorResponseShape[]>();
@@ -474,7 +445,7 @@ function checkResponseConsistency(
   const shapeList = [...uniqueShapes.entries()]
     .map(
       ([shape, occurrences]) =>
-        `  Shape "${shape}" in ${occurrences.length} handler(s): ${occurrences.map((o) => o.file).join(", ")}`
+        `  Shape "${shape}" in ${occurrences.length} handler(s): ${occurrences.map((o) => o.file).join(", ")}`,
     )
     .join("\n");
 
@@ -486,8 +457,8 @@ function checkResponseConsistency(
       "Inconsistent error response formats",
       `Multiple error response shapes detected across handlers:\n${shapeList}\nStandardise on a single error response format for a consistent API experience.`,
       shapes[0].file,
-      shapes[0].line
-    )
+      shapes[0].line,
+    ),
   );
 
   return false;
@@ -504,7 +475,7 @@ function makeIssue(
   title: string,
   description: string,
   file: string,
-  line: number | null
+  line: number | null,
 ): Issue {
   return {
     id,

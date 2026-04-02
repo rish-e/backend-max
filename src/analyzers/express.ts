@@ -3,18 +3,18 @@
 // =============================================================================
 
 import { readFile } from "node:fs/promises";
-import { join, relative, posix, sep } from "node:path";
+import { join } from "node:path";
 import { glob } from "glob";
-import type { RouteInfo, MethodInfo, Issue } from "../types.js";
+import { Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
+import type { Issue, MethodInfo, RouteInfo } from "../types.js";
 import type { FrameworkAnalyzer, FrameworkCheck } from "./framework-interface.js";
 import {
   createProject,
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
   detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
 } from "./typescript.js";
-import { Node, SyntaxKind, type SourceFile, type Project } from "ts-morph";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -33,17 +33,13 @@ const EXPRESS_METHODS = [
 ] as const;
 
 /** Patterns that indicate Express route definitions. */
-const ROUTE_CALL_REGEX = new RegExp(
-  `(?:app|router)\\.(${EXPRESS_METHODS.join("|")})\\s*\\(`,
-  "g",
-);
+const ROUTE_CALL_REGEX = new RegExp(`(?:app|router)\\.(${EXPRESS_METHODS.join("|")})\\s*\\(`, "g");
 
 /** Pattern to detect express.Router() usage. */
 const ROUTER_DECL_REGEX = /express\.Router\s*\(\s*\)/;
 
 /** Pattern to detect router mounting: app.use('/prefix', routerVar). */
-const MOUNT_REGEX =
-  /app\.use\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(\w+)/g;
+const MOUNT_REGEX = /app\.use\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(\w+)/g;
 
 // ---------------------------------------------------------------------------
 // Express Analyzer
@@ -74,7 +70,8 @@ async function detect(projectPath: string): Promise<boolean> {
     const deps = (pkg.dependencies ?? {}) as Record<string, string>;
     const devDeps = (pkg.devDependencies ?? {}) as Record<string, string>;
     return "express" in deps || "express" in devDeps;
-  } catch { /* skip: unreadable/unparseable package.json */
+  } catch {
+    /* skip: unreadable/unparseable package.json */
     return false;
   }
 }
@@ -114,7 +111,9 @@ async function scanExpressRoutes(projectPath: string): Promise<RouteInfo[]> {
         routeFiles.push({ filePath, content });
       }
       ROUTE_CALL_REGEX.lastIndex = 0;
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   if (routeFiles.length === 0) {
@@ -132,7 +131,9 @@ async function scanExpressRoutes(projectPath: string): Promise<RouteInfo[]> {
     try {
       const routes = analyzeExpressFile(filePath, content, project, mountMap);
       allRoutes.push(...routes);
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   // Sort for deterministic output
@@ -181,14 +182,15 @@ async function buildMountMap(
  */
 function analyzeExpressFile(
   filePath: string,
-  content: string,
+  _content: string,
   project: Project,
   mountMap: Map<string, string>,
 ): RouteInfo[] {
   let sourceFile: SourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
-  } catch { /* skip: unreadable/unparseable file */
+  } catch {
+    /* skip: unreadable/unparseable file */
     return [];
   }
 
@@ -198,9 +200,7 @@ function analyzeExpressFile(
   // Find all route method calls
   const routeMap = new Map<string, MethodInfo[]>();
 
-  const callExpressions = sourceFile.getDescendantsOfKind(
-    SyntaxKind.CallExpression,
-  );
+  const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
 
   for (const call of callExpressions) {
     const expr = call.getExpression();
@@ -212,32 +212,23 @@ function analyzeExpressFile(
     if (!(EXPRESS_METHODS as readonly string[]).includes(methodName)) continue;
 
     const objName = expr.getExpression().getText();
-    if (
-      objName !== "app" &&
-      objName !== "router" &&
-      !mountMap.has(objName)
-    )
-      continue;
+    if (objName !== "app" && objName !== "router" && !mountMap.has(objName)) continue;
 
     // Extract the URL pattern (first argument)
     const args = call.getArguments();
     if (args.length === 0) continue;
 
     const firstArg = args[0];
-    let urlPattern = firstArg.getText().replace(/^['"`]|['"`]$/g, "");
+    const urlPattern = firstArg.getText().replace(/^['"`]|['"`]$/g, "");
 
     // Skip non-string first arguments (middleware-only calls)
     if (urlPattern.startsWith("(") || urlPattern.startsWith("{")) continue;
 
     // Apply mount prefix
-    const prefix =
-      objName === "router"
-        ? routerPrefix
-        : mountMap.get(objName) ?? "";
+    const prefix = objName === "router" ? routerPrefix : (mountMap.get(objName) ?? "");
     const fullUrl = normalizePath(prefix + urlPattern);
 
-    const httpMethod =
-      methodName === "all" ? "ALL" : methodName.toUpperCase();
+    const httpMethod = methodName === "all" ? "ALL" : methodName.toUpperCase();
 
     // Analyze the handler (last argument, usually a function)
     const handler = args[args.length - 1];
@@ -246,7 +237,7 @@ function analyzeExpressFile(
     if (!routeMap.has(fullUrl)) {
       routeMap.set(fullUrl, []);
     }
-    routeMap.get(fullUrl)!.push(methodInfo);
+    routeMap.get(fullUrl)?.push(methodInfo);
   }
 
   // Convert to RouteInfo array
@@ -266,10 +257,7 @@ function analyzeExpressFile(
 /**
  * Detects the router mount prefix for a file that declares express.Router().
  */
-function detectRouterPrefix(
-  sourceFile: SourceFile,
-  mountMap: Map<string, string>,
-): string {
+function detectRouterPrefix(sourceFile: SourceFile, mountMap: Map<string, string>): string {
   // Look for `const <name> = express.Router()` and check mount map
   for (const varStatement of sourceFile.getVariableStatements()) {
     for (const decl of varStatement.getDeclarations()) {
@@ -293,11 +281,7 @@ function detectRouterPrefix(
 /**
  * Builds MethodInfo from an Express route handler.
  */
-function buildExpressMethodInfo(
-  method: string,
-  handlerNode: Node,
-  callNode: Node,
-): MethodInfo {
+function buildExpressMethodInfo(method: string, handlerNode: Node, callNode: Node): MethodInfo {
   return {
     method,
     hasValidation: detectValidation(handlerNode),
@@ -320,7 +304,7 @@ function buildExpressMethodInfo(
 function normalizePath(urlPath: string): string {
   let normalized = urlPath.replace(/\/+/g, "/");
   if (!normalized.startsWith("/")) {
-    normalized = "/" + normalized;
+    normalized = `/${normalized}`;
   }
   if (normalized.length > 1 && normalized.endsWith("/")) {
     normalized = normalized.slice(0, -1);
@@ -361,8 +345,7 @@ function getFrameworkChecks(): FrameworkCheck[] {
     {
       id: "express-missing-404-handler",
       name: "Missing 404 handler",
-      description:
-        "Express apps should have a catch-all handler for unmatched routes.",
+      description: "Express apps should have a catch-all handler for unmatched routes.",
       check: checkMissing404Handler,
     },
     {
@@ -402,12 +385,8 @@ async function checkMissingErrorMiddleware(
   for (const { filePath, content } of entryFiles) {
     // Error middleware has 4 params: (err, req, res, next)
     if (
-      /app\.use\s*\(\s*(?:function\s*\()?\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+/.test(
-        content,
-      ) ||
-      /app\.use\s*\(\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\)/.test(
-        content,
-      )
+      /app\.use\s*\(\s*(?:function\s*\()?\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+/.test(content) ||
+      /app\.use\s*\(\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*\)/.test(content)
     ) {
       return [];
     }
@@ -435,10 +414,7 @@ async function checkMissingErrorMiddleware(
 /**
  * Checks for missing 404 catch-all handler.
  */
-async function checkMissing404Handler(
-  projectPath: string,
-  _routes: RouteInfo[],
-): Promise<Issue[]> {
+async function checkMissing404Handler(projectPath: string, _routes: RouteInfo[]): Promise<Issue[]> {
   const entryFiles = await findExpressEntryFiles(projectPath);
   const timestamp = new Date().toISOString();
 
@@ -446,8 +422,7 @@ async function checkMissing404Handler(
     // Common 404 patterns
     if (
       /404/.test(content) &&
-      (/app\.use\s*\(\s*(?:function|\()/.test(content) ||
-        /\.status\s*\(\s*404\s*\)/.test(content))
+      (/app\.use\s*\(\s*(?:function|\()/.test(content) || /\.status\s*\(\s*404\s*\)/.test(content))
     ) {
       return [];
     }
@@ -475,10 +450,7 @@ async function checkMissing404Handler(
 /**
  * Checks for app.listen() appearing in route/module files instead of the entry point.
  */
-async function checkListenInRouteFile(
-  projectPath: string,
-  routes: RouteInfo[],
-): Promise<Issue[]> {
+async function checkListenInRouteFile(_projectPath: string, routes: RouteInfo[]): Promise<Issue[]> {
   const issues: Issue[] = [];
   const timestamp = new Date().toISOString();
   const seen = new Set<string>();
@@ -509,7 +481,9 @@ async function checkListenInRouteFile(
           });
         }
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return issues;
@@ -539,7 +513,9 @@ async function checkMissingSecurityMiddleware(
     };
     hasHelmet = "helmet" in deps;
     hasCors = "cors" in deps;
-  } catch { /* skip: unreadable/unparseable package.json */ }
+  } catch {
+    /* skip: unreadable/unparseable package.json */
+  }
 
   // Also scan entry files for usage
   for (const { content } of entryFiles) {
@@ -585,17 +561,12 @@ async function checkMissingSecurityMiddleware(
 /**
  * Checks for missing body parser middleware.
  */
-async function checkMissingBodyParser(
-  projectPath: string,
-  routes: RouteInfo[],
-): Promise<Issue[]> {
+async function checkMissingBodyParser(projectPath: string, routes: RouteInfo[]): Promise<Issue[]> {
   const timestamp = new Date().toISOString();
 
   // Only relevant if there are POST/PUT/PATCH routes
   const hasMutationRoutes = routes.some((r) =>
-    r.methods.some((m) =>
-      ["POST", "PUT", "PATCH", "ALL"].includes(m.method),
-    ),
+    r.methods.some((m) => ["POST", "PUT", "PATCH", "ALL"].includes(m.method)),
   );
   if (!hasMutationRoutes) return [];
 
@@ -658,7 +629,9 @@ async function findExpressEntryFiles(
       if (/express/.test(content)) {
         results.push({ filePath, content });
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return results;

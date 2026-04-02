@@ -27,15 +27,29 @@ export interface RateLimitAuditResult {
 // ---------------------------------------------------------------------------
 
 const RATE_LIMIT_PACKAGES = [
-  "express-rate-limit", "rate-limiter-flexible", "@fastify/rate-limit",
-  "hono-rate-limiter", "upstash-ratelimit", "@upstash/ratelimit",
-  "bottleneck", "p-throttle", "limiter",
+  "express-rate-limit",
+  "rate-limiter-flexible",
+  "@fastify/rate-limit",
+  "hono-rate-limiter",
+  "upstash-ratelimit",
+  "@upstash/ratelimit",
+  "bottleneck",
+  "p-throttle",
+  "limiter",
 ];
 
 const CACHE_PACKAGES = [
-  "ioredis", "redis", "@upstash/redis", "lru-cache", "node-cache",
-  "keyv", "cacheable-request", "apicache", "@fastify/caching",
-  "memory-cache", "flat-cache",
+  "ioredis",
+  "redis",
+  "@upstash/redis",
+  "lru-cache",
+  "node-cache",
+  "keyv",
+  "cacheable-request",
+  "apicache",
+  "@fastify/caching",
+  "memory-cache",
+  "flat-cache",
 ];
 
 /** Patterns indicating rate limiting in code. */
@@ -71,9 +85,7 @@ const CACHE_CODE_PATTERNS = [
 /**
  * Audits rate limiting and caching patterns in the project.
  */
-export async function auditRateLimitAndCaching(
-  projectPath: string,
-): Promise<RateLimitAuditResult> {
+export async function auditRateLimitAndCaching(projectPath: string): Promise<RateLimitAuditResult> {
   const timestamp = getTimestamp();
   const issues: Issue[] = [];
 
@@ -91,13 +103,17 @@ export async function auditRateLimitAndCaching(
   try {
     const scanResult = await scanRoutes(projectPath);
     routes = scanResult.routes;
-  } catch { /* skip: route scan failure */ }
+  } catch (e) {
+    console.error("[rate-limit-auditor] Route scan failed:", e instanceof Error ? e.message : e);
+  }
 
   // 4. Check for expensive endpoints without rate limiting
   if (!hasRateLimiting && routes.length > 0) {
     // Find auth-related endpoints (login, register, forgot-password) — these MUST be rate limited
     const authEndpoints = routes.filter((r) =>
-      /login|signin|sign-in|register|signup|sign-up|forgot|reset|password|verify|otp|token/i.test(r.url),
+      /login|signin|sign-in|register|signup|sign-up|forgot|reset|password|verify|otp|token/i.test(
+        r.url,
+      ),
     );
 
     for (const route of authEndpoints) {
@@ -206,14 +222,17 @@ async function checkPackages(projectPath: string): Promise<{
     const pkg = JSON.parse(raw);
     if (!pkg || typeof pkg !== "object") return { rateLimitPkgs: [], cachePkgs: [] };
     const allDeps = {
-      ...((pkg.dependencies && typeof pkg.dependencies === "object") ? pkg.dependencies : {}),
-      ...((pkg.devDependencies && typeof pkg.devDependencies === "object") ? pkg.devDependencies : {}),
+      ...(pkg.dependencies && typeof pkg.dependencies === "object" ? pkg.dependencies : {}),
+      ...(pkg.devDependencies && typeof pkg.devDependencies === "object"
+        ? pkg.devDependencies
+        : {}),
     };
 
     const rateLimitPkgs = RATE_LIMIT_PACKAGES.filter((p) => p in allDeps);
     const cachePkgs = CACHE_PACKAGES.filter((p) => p in allDeps);
     return { rateLimitPkgs, cachePkgs };
-  } catch { /* skip: unreadable package.json */
+  } catch {
+    /* skip: unreadable package.json */
     return { rateLimitPkgs: [], cachePkgs: [] };
   }
 }
@@ -231,10 +250,7 @@ async function scanCodePatterns(projectPath: string): Promise<{
     cwd: projectPath,
     absolute: true,
     nodir: true,
-    ignore: [
-      "**/node_modules/**", "**/dist/**", "**/build/**",
-      "**/.next/**", "**/coverage/**",
-    ],
+    ignore: ["**/node_modules/**", "**/dist/**", "**/build/**", "**/.next/**", "**/coverage/**"],
   });
 
   for (const filePath of sourceFiles.slice(0, 500)) {
@@ -259,7 +275,9 @@ async function scanCodePatterns(projectPath: string): Promise<{
       }
 
       if (patterns.length > 0) filePatterns.set(filePath, patterns);
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   return { hasRateLimitCode, hasCacheCode, filePatterns };
@@ -268,7 +286,8 @@ async function scanCodePatterns(projectPath: string): Promise<{
 async function safeReadFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf-8");
-  } catch { /* skip: unreadable file */
+  } catch {
+    /* skip: unreadable file */
     return null;
   }
 }

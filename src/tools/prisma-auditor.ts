@@ -6,19 +6,13 @@
 // =============================================================================
 
 import { glob } from "glob";
-import type {
-  Issue,
-  PrismaSchemaInfo,
-  DatabaseCall,
-  IssueCategory,
-  Severity,
-} from "../types.js";
 import {
-  parsePrismaSchema,
   crossReferenceCalls,
   detectMigrationDrift,
+  parsePrismaSchema,
 } from "../analyzers/prisma.js";
 import { createProject } from "../analyzers/typescript.js";
+import type { DatabaseCall, Issue, IssueCategory, PrismaSchemaInfo, Severity } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -34,13 +28,7 @@ const SOURCE_PATTERNS = [
   "server/**/*.{ts,tsx}",
 ];
 
-const IGNORE_DIRS = [
-  "node_modules/**",
-  ".next/**",
-  "dist/**",
-  "build/**",
-  ".git/**",
-];
+const IGNORE_DIRS = ["node_modules/**", ".next/**", "dist/**", "build/**", ".git/**"];
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -126,8 +114,7 @@ export async function auditPrisma(projectPath: string): Promise<{
   try {
     const migrationIssues = await detectMigrationDrift(projectPath);
     for (const mi of migrationIssues) {
-      const severity: Severity =
-        mi.type === "drift-suspected" ? "warning" : "info";
+      const severity: Severity = mi.type === "drift-suspected" ? "warning" : "info";
 
       issues.push(
         makeIssue(
@@ -169,9 +156,7 @@ export async function auditPrisma(projectPath: string): Promise<{
  * @param projectPath  Absolute path to the project root.
  * @returns            Array of structured DatabaseCall objects.
  */
-async function extractDatabaseCallsFromProject(
-  projectPath: string,
-): Promise<DatabaseCall[]> {
+async function extractDatabaseCallsFromProject(projectPath: string): Promise<DatabaseCall[]> {
   const calls: DatabaseCall[] = [];
 
   // Discover source files
@@ -199,8 +184,7 @@ async function extractDatabaseCallsFromProject(
       const text = sourceFile.getText();
 
       // Match prisma.model.operation patterns
-      const prismaCallRegex =
-        /prisma\.(\w+)\.(\w+)\s*\(([^)]*(?:\{[^}]*\}[^)]*)?)\)/gs;
+      const prismaCallRegex = /prisma\.(\w+)\.(\w+)\s*\(([^)]*(?:\{[^}]*\}[^)]*)?)\)/gs;
 
       let match: RegExpExecArray | null;
       while ((match = prismaCallRegex.exec(text)) !== null) {

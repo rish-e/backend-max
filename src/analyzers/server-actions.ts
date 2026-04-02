@@ -7,14 +7,14 @@
 // =============================================================================
 
 import { glob } from "glob";
-import { Node, SyntaxKind, type SourceFile } from "ts-morph";
+import { Node, type SourceFile, SyntaxKind } from "ts-morph";
 import type { ServerAction } from "../types.js";
-import { createProject } from "./typescript.js";
 import {
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
+  createProject,
   detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
 } from "./typescript.js";
 
 // ---------------------------------------------------------------------------
@@ -30,13 +30,7 @@ const SOURCE_PATTERNS = [
   "lib/**/*.{ts,tsx}",
 ];
 
-const IGNORE_DIRS = [
-  "node_modules/**",
-  ".next/**",
-  "dist/**",
-  "build/**",
-  ".git/**",
-];
+const IGNORE_DIRS = ["node_modules/**", ".next/**", "dist/**", "build/**", ".git/**"];
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -59,9 +53,7 @@ const IGNORE_DIRS = [
  * @param projectPath  Absolute path to the project root.
  * @returns            Array of detected ServerAction objects.
  */
-export async function scanServerActions(
-  projectPath: string,
-): Promise<ServerAction[]> {
+export async function scanServerActions(projectPath: string): Promise<ServerAction[]> {
   const actions: ServerAction[] = [];
 
   // Discover source files
@@ -98,17 +90,16 @@ export async function scanServerActions(
 
       if (isFileLevel) {
         // All exported functions in this file are server actions
-        const exportedActions = extractFileLevelActions(
-          sourceFile,
-          filePath,
-        );
+        const exportedActions = extractFileLevelActions(sourceFile, filePath);
         actions.push(...exportedActions);
       } else {
         // Look for inline 'use server' inside individual functions
         const inlineActions = extractInlineActions(sourceFile, filePath);
         actions.push(...inlineActions);
       }
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   return actions;
@@ -161,10 +152,7 @@ function isFileLevelDirective(fullText: string): boolean {
 /**
  * Extracts all exported functions from a file with a file-level 'use server' directive.
  */
-function extractFileLevelActions(
-  sourceFile: SourceFile,
-  filePath: string,
-): ServerAction[] {
+function extractFileLevelActions(sourceFile: SourceFile, filePath: string): ServerAction[] {
   const actions: ServerAction[] = [];
 
   // Exported function declarations: export async function doSomething() {}
@@ -194,10 +182,7 @@ function extractFileLevelActions(
       const initializer = decl.getInitializer();
       if (!initializer) continue;
 
-      if (
-        Node.isArrowFunction(initializer) ||
-        Node.isFunctionExpression(initializer)
-      ) {
+      if (Node.isArrowFunction(initializer) || Node.isFunctionExpression(initializer)) {
         const name = decl.getName();
         const dbCalls = detectDatabaseCalls(initializer);
         actions.push({
@@ -225,16 +210,11 @@ function extractFileLevelActions(
 /**
  * Extracts functions that contain an inline 'use server' directive.
  */
-function extractInlineActions(
-  sourceFile: SourceFile,
-  filePath: string,
-): ServerAction[] {
+function extractInlineActions(sourceFile: SourceFile, filePath: string): ServerAction[] {
   const actions: ServerAction[] = [];
 
   // Check all function declarations
-  for (const func of sourceFile.getDescendantsOfKind(
-    SyntaxKind.FunctionDeclaration,
-  )) {
+  for (const func of sourceFile.getDescendantsOfKind(SyntaxKind.FunctionDeclaration)) {
     if (hasInlineUseServer(func)) {
       const name = func.getName() ?? "anonymous";
       const dbCalls = detectDatabaseCalls(func);
@@ -259,8 +239,7 @@ function extractInlineActions(
       if (!initializer) continue;
 
       if (
-        (Node.isArrowFunction(initializer) ||
-          Node.isFunctionExpression(initializer)) &&
+        (Node.isArrowFunction(initializer) || Node.isFunctionExpression(initializer)) &&
         hasInlineUseServer(initializer)
       ) {
         const name = decl.getName();
@@ -289,7 +268,5 @@ function extractInlineActions(
  */
 function hasInlineUseServer(node: Node): boolean {
   const text = node.getFullText();
-  return (
-    text.includes("'use server'") || text.includes('"use server"')
-  );
+  return text.includes("'use server'") || text.includes('"use server"');
 }

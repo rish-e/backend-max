@@ -2,18 +2,10 @@
 // backend-max — Queryable API graph
 // =============================================================================
 
-import { scanRoutes } from "./route-scanner.js";
 import { scanFrontendCalls } from "../analyzers/frontend.js";
 import { detectMiddleware } from "../analyzers/nextjs.js";
-import type {
-  RouteInfo,
-  FrontendCall,
-  MiddlewareInfo,
-  ApiGraph,
-  ApiNode,
-  ApiEdge,
-  ApiQueryResult,
-} from "../types.js";
+import type { ApiEdge, ApiGraph, ApiNode, ApiQueryResult, FrontendCall } from "../types.js";
+import { scanRoutes } from "./route-scanner.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,11 +22,19 @@ function nodeId(type: string, name: string): string {
  * Extracts unique model names from database call expressions.
  * e.g., "prisma.user.findMany" => "user", "db.select" => "db"
  */
-function extractModelsFromCalls(databaseCalls: string[]): Array<{ model: string; isWrite: boolean }> {
+function extractModelsFromCalls(
+  databaseCalls: string[],
+): Array<{ model: string; isWrite: boolean }> {
   const results: Array<{ model: string; isWrite: boolean }> = [];
   const writeMethods = new Set([
-    "create", "createMany", "update", "updateMany",
-    "delete", "deleteMany", "upsert", "insert",
+    "create",
+    "createMany",
+    "update",
+    "updateMany",
+    "delete",
+    "deleteMany",
+    "upsert",
+    "insert",
   ]);
 
   for (const call of databaseCalls) {
@@ -258,30 +258,27 @@ export function queryApiGraph(graph: ApiGraph, query: string): ApiQueryResult {
   const matchedEdges: ApiEdge[] = [];
 
   // Helper: get all edges pointing to a node
-  const edgesTo = (nodeId: string) => graph.edges.filter((e) => e.to === nodeId);
-  const edgesFrom = (nodeId: string) => graph.edges.filter((e) => e.from === nodeId);
+  const _edgesTo = (nodeId: string) => graph.edges.filter((e) => e.to === nodeId);
+  const _edgesFrom = (nodeId: string) => graph.edges.filter((e) => e.from === nodeId);
 
   // "unprotected routes" / "routes without auth"
   if (q.includes("unprotected") || (q.includes("without") && q.includes("auth"))) {
-    const protectedIds = new Set(
-      graph.edges.filter((e) => e.type === "protects").map((e) => e.to),
-    );
+    const protectedIds = new Set(graph.edges.filter((e) => e.type === "protects").map((e) => e.to));
     for (const node of graph.nodes) {
       if (node.type === "route" && !protectedIds.has(node.id)) {
         matchedNodes.push(node);
       }
     }
-    return { nodes: matchedNodes, edges: matchedEdges, description: "Routes without auth protection" };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: "Routes without auth protection",
+    };
   }
 
   // "routes with auth" / "protected routes"
-  if (
-    (q.includes("with") && q.includes("auth")) ||
-    q.includes("protected")
-  ) {
-    const protectedIds = new Set(
-      graph.edges.filter((e) => e.type === "protects").map((e) => e.to),
-    );
+  if ((q.includes("with") && q.includes("auth")) || q.includes("protected")) {
+    const protectedIds = new Set(graph.edges.filter((e) => e.type === "protects").map((e) => e.to));
     for (const node of graph.nodes) {
       if (node.type === "route" && protectedIds.has(node.id)) {
         matchedNodes.push(node);
@@ -306,7 +303,11 @@ export function queryApiGraph(graph: ApiGraph, query: string): ApiQueryResult {
       }
     }
     matchedEdges.push(...writeEdges);
-    return { nodes: matchedNodes, edges: matchedEdges, description: `Routes that write to "${target}"` };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: `Routes that write to "${target}"`,
+    };
   }
 
   // "routes that read from X" / "reading from X"
@@ -323,7 +324,11 @@ export function queryApiGraph(graph: ApiGraph, query: string): ApiQueryResult {
       }
     }
     matchedEdges.push(...readEdges);
-    return { nodes: matchedNodes, edges: matchedEdges, description: `Routes that read from "${target}"` };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: `Routes that read from "${target}"`,
+    };
   }
 
   // "frontend components calling X" / "calling /api/X" / "that call X"
@@ -340,22 +345,28 @@ export function queryApiGraph(graph: ApiGraph, query: string): ApiQueryResult {
       }
     }
     matchedEdges.push(...callEdges);
-    return { nodes: matchedNodes, edges: matchedEdges, description: `Components calling "${target}"` };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: `Components calling "${target}"`,
+    };
   }
 
   // "unused models"
   if (q.includes("unused") && q.includes("model")) {
     const modelsWithEdges = new Set(
-      graph.edges
-        .filter((e) => e.type === "reads" || e.type === "writes")
-        .map((e) => e.to),
+      graph.edges.filter((e) => e.type === "reads" || e.type === "writes").map((e) => e.to),
     );
     for (const node of graph.nodes) {
       if (node.type === "model" && !modelsWithEdges.has(node.id)) {
         matchedNodes.push(node);
       }
     }
-    return { nodes: matchedNodes, edges: matchedEdges, description: "Models with no read/write edges" };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: "Models with no read/write edges",
+    };
   }
 
   // "unused routes"
@@ -368,7 +379,11 @@ export function queryApiGraph(graph: ApiGraph, query: string): ApiQueryResult {
         matchedNodes.push(node);
       }
     }
-    return { nodes: matchedNodes, edges: matchedEdges, description: "Routes with no frontend callers" };
+    return {
+      nodes: matchedNodes,
+      edges: matchedEdges,
+      description: "Routes with no frontend callers",
+    };
   }
 
   // Fallback: search by name substring

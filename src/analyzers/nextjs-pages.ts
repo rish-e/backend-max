@@ -2,19 +2,18 @@
 // backend-max — Next.js Pages Router API route analyzer
 // =============================================================================
 
+import { join, posix, relative, sep } from "node:path";
 import { glob } from "glob";
-import { join, relative, sep, posix } from "node:path";
-import type { RouteInfo, MethodInfo } from "../types.js";
-import { createProject } from "./typescript.js";
-import {
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
-  detectAuthPatterns,
-} from "./typescript.js";
+import type { Node, SourceFile } from "ts-morph";
+import type { MethodInfo, RouteInfo } from "../types.js";
 import { extractDynamicParams } from "./nextjs.js";
-import { Node, SyntaxKind } from "ts-morph";
-import type { SourceFile } from "ts-morph";
+import {
+  createProject,
+  detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
+} from "./typescript.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -42,7 +41,7 @@ function pagesFilePathToUrl(filePath: string, pagesDir: string): string {
   const withoutIndex = withoutExt.replace(/\/index$/, "");
 
   // Build URL: pages dir already includes "api" prefix in the glob
-  const url = "/" + withoutIndex;
+  const url = `/${withoutIndex}`;
   return url === "/" ? "/" : url;
 }
 
@@ -63,7 +62,8 @@ function extractMethodsFromHandler(sourceFile: SourceFile): string[] {
   const methods = new Set<string>();
 
   // Match req.method === "X" or req.method === 'X'
-  const comparisonRegex = /req\.method\s*===?\s*["'`](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)["'`]/gi;
+  const comparisonRegex =
+    /req\.method\s*===?\s*["'`](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)["'`]/gi;
   let match: RegExpExecArray | null;
   while ((match = comparisonRegex.exec(text)) !== null) {
     methods.add(match[1].toUpperCase());
@@ -139,9 +139,7 @@ function findDefaultExportBody(sourceFile: SourceFile): Node | null {
  * @param projectPath - Absolute path to the project root.
  * @returns Array of RouteInfo compatible with the rest of the system.
  */
-export async function scanPagesApiRoutes(
-  projectPath: string,
-): Promise<RouteInfo[]> {
+export async function scanPagesApiRoutes(projectPath: string): Promise<RouteInfo[]> {
   // Look for pages/api and src/pages/api
   const candidates = [
     { dir: join(projectPath, "pages"), prefix: "pages" },
@@ -178,7 +176,8 @@ export async function scanPagesApiRoutes(
       let sourceFile: SourceFile;
       try {
         sourceFile = project.addSourceFileAtPath(filePath);
-      } catch { /* skip: unreadable/unparseable file */
+      } catch {
+        /* skip: unreadable/unparseable file */
         continue;
       }
 
@@ -213,7 +212,9 @@ export async function scanPagesApiRoutes(
         methods,
         dynamicParams,
       });
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   // Sort for deterministic output

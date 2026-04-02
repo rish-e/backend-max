@@ -3,18 +3,11 @@
 // =============================================================================
 
 import { glob } from "glob";
-import type { RouteInfo, MethodInfo, Issue, ScanResult } from "../types.js";
-import {
-  filePathToUrl,
-  extractDynamicParams,
-  findAppDir,
-} from "../analyzers/nextjs.js";
-import {
-  createProject,
-  extractExportedMethods,
-} from "../analyzers/typescript.js";
-import { detectFramework } from "../analyzers/registry.js";
 import type { FrameworkAnalyzer } from "../analyzers/framework-interface.js";
+import { extractDynamicParams, filePathToUrl, findAppDir } from "../analyzers/nextjs.js";
+import { detectFramework } from "../analyzers/registry.js";
+import { createProject, extractExportedMethods } from "../analyzers/typescript.js";
+import type { Issue, MethodInfo, RouteInfo, ScanResult } from "../types.js";
 
 /**
  * Scans a project for all route handler files and extracts detailed
@@ -62,7 +55,9 @@ export async function runFrameworkChecks(
     try {
       const checkIssues = await check.check(projectPath, routes);
       issues.push(...checkIssues);
-    } catch { /* skip: individual framework check failure */ }
+    } catch (e) {
+      console.error("[route-scanner] Framework check failed:", e instanceof Error ? e.message : e);
+    }
   }
 
   return issues;
@@ -84,10 +79,7 @@ async function scanWithAnalyzer(
   // Sort for deterministic output
   routes.sort((a, b) => a.url.localeCompare(b.url));
 
-  const totalEndpoints = routes.reduce(
-    (sum, r) => sum + r.methods.length,
-    0,
-  );
+  const totalEndpoints = routes.reduce((sum, r) => sum + r.methods.length, 0);
 
   const frameworksDetected = new Set<string>([analyzer.name]);
 
@@ -176,8 +168,7 @@ async function scanNextJSRoutes(projectPath: string): Promise<ScanResult> {
       }
     } catch (error) {
       // Log but don't fail — continue scanning other files
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       console.warn(`[route-scanner] Failed to analyze ${filePath}: ${message}`);
     }
   }
@@ -213,7 +204,8 @@ function analyzeRouteFile(
   let sourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
-  } catch { /* skip: unreadable/unparseable file */
+  } catch {
+    /* skip: unreadable/unparseable file */
     return null;
   }
 

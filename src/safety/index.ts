@@ -6,28 +6,28 @@ import type { SafetyCheckResult } from "../types.js";
 
 // Re-export everything from sub-modules
 export {
-  validateProjectPath,
+  BLOCKED_FILE_PATTERNS,
+  BLOCKED_PATHS,
   isAllowedFile,
   isWriteSafe,
   sanitizeEnvContent,
-  BLOCKED_PATHS,
-  BLOCKED_FILE_PATTERNS,
+  validateProjectPath,
 } from "./path-guardian.js";
 
 export {
-  sanitizeReport,
-  sanitizeForDisk,
-  sanitizeForOutput,
   containsSecrets,
   SECRET_PATTERNS,
+  sanitizeForDisk,
+  sanitizeForOutput,
+  sanitizeReport,
 } from "./sanitizer.js";
 
 export {
-  loadLimits,
   enforceLimits,
-  pruneOldReports,
   ensureGitignore,
   getScanStats,
+  loadLimits,
+  pruneOldReports,
 } from "./scope-limiter.js";
 
 // Import for use in the unified check
@@ -45,9 +45,7 @@ import { ensureGitignore, pruneOldReports } from "./scope-limiter.js";
  * @param projectPath - Absolute path to the project root.
  * @returns The result of all safety checks.
  */
-export async function runSafetyChecks(
-  projectPath: string,
-): Promise<SafetyCheckResult> {
+export async function runSafetyChecks(projectPath: string): Promise<SafetyCheckResult> {
   // 1. Validate project path — fail fast
   const pathValidation = validateProjectPath(projectPath);
   if (!pathValidation.valid) {

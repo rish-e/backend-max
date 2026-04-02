@@ -2,10 +2,10 @@
 // backend-max — Cross-project pattern learning (local-only, opt-in)
 // =============================================================================
 
-import { join } from "node:path";
 import { homedir } from "node:os";
-import { readJsonSafe, writeJson, ensureDir } from "../utils/helpers.js";
-import type { Issue, ProjectContext, PatternInsight } from "../types.js";
+import { join } from "node:path";
+import type { Issue, PatternInsight, ProjectContext } from "../types.js";
+import { ensureDir, readJsonSafe, writeJson } from "../utils/helpers.js";
 
 /** Directory for cross-project pattern storage (user home, never project). */
 const PATTERNS_DIR = join(homedir(), ".backend-max");
@@ -76,7 +76,7 @@ function hashProjectName(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     const char = name.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32-bit integer
   }
   return Math.abs(hash).toString(36);
@@ -191,17 +191,14 @@ export async function trackPatterns(
  *                    Use "all" or empty string for all frameworks.
  * @returns Array of pattern insights sorted by occurrence count (descending).
  */
-export async function getCommonPatterns(
-  framework: string,
-): Promise<PatternInsight[]> {
+export async function getCommonPatterns(framework: string): Promise<PatternInsight[]> {
   const store = await loadStore();
   const normalizedFramework = framework.toLowerCase().trim();
 
-  const filtered = normalizedFramework && normalizedFramework !== "all"
-    ? store.patterns.filter(
-        (p) => p.framework.toLowerCase() === normalizedFramework,
-      )
-    : store.patterns;
+  const filtered =
+    normalizedFramework && normalizedFramework !== "all"
+      ? store.patterns.filter((p) => p.framework.toLowerCase() === normalizedFramework)
+      : store.patterns;
 
   return filtered
     .sort((a, b) => b.occurrences - a.occurrences)
@@ -221,14 +218,14 @@ export async function getCommonPatterns(
  * @param issues - Issues from the current diagnosis.
  * @returns Array of insight strings.
  */
-export async function getProjectInsights(
-  issues: Issue[],
-): Promise<string[]> {
+export async function getProjectInsights(issues: Issue[]): Promise<string[]> {
   if (issues.length === 0) return [];
 
   const store = await loadStore();
   if (store.patterns.length === 0) {
-    return ["No cross-project pattern data available yet. Patterns will be tracked after each diagnosis."];
+    return [
+      "No cross-project pattern data available yet. Patterns will be tracked after each diagnosis.",
+    ];
   }
 
   // Build lookup
@@ -238,9 +235,7 @@ export async function getProjectInsights(
   }
 
   // Sort all patterns by occurrences to get rankings
-  const sortedPatterns = [...store.patterns].sort(
-    (a, b) => b.occurrences - a.occurrences,
-  );
+  const sortedPatterns = [...store.patterns].sort((a, b) => b.occurrences - a.occurrences);
   const rankMap = new Map<string, number>();
   sortedPatterns.forEach((p, idx) => rankMap.set(p.pattern, idx + 1));
 
@@ -253,9 +248,7 @@ export async function getProjectInsights(
 
     if (entry && entry.projects > 1) {
       const rank = rankMap.get(pattern) ?? 0;
-      const projectPct = totalProjects > 0
-        ? Math.round((entry.projects / totalProjects) * 100)
-        : 0;
+      const projectPct = totalProjects > 0 ? Math.round((entry.projects / totalProjects) * 100) : 0;
 
       if (rank <= 3) {
         insights.push(

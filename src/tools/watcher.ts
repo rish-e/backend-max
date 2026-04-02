@@ -2,11 +2,11 @@
 // backend-max — Watch mode / incremental analysis
 // =============================================================================
 
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { glob } from "glob";
 import type { DiagnosisReport, Issue } from "../types.js";
-import { readJsonSafe, getTimestamp } from "../utils/helpers.js";
+import { getTimestamp, readJsonSafe } from "../utils/helpers.js";
 import { runFullDiagnosis } from "./orchestrator.js";
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ export async function runIncrementalAnalysis(
   projectPath: string,
   focus: string,
 ): Promise<WatchResult> {
-  const timestamp = getTimestamp();
+  const _timestamp = getTimestamp();
 
   // 1. Find the most recent previous report
   const previousReport = await getLatestReport(projectPath);
@@ -83,10 +83,7 @@ export async function runIncrementalAnalysis(
   }
 
   // 3. Find files changed since the last report
-  const changedFiles = await findChangedFiles(
-    projectPath,
-    previousReport.timestamp,
-  );
+  const changedFiles = await findChangedFiles(projectPath, previousReport.timestamp);
 
   // 4. Run full diagnosis (we always run full for accuracy, but report the delta)
   const report = await runFullDiagnosis(projectPath, focus);
@@ -96,9 +93,7 @@ export async function runIncrementalAnalysis(
   const currentIssueIds = new Set(report.issues.map((i) => i.id));
 
   const newIssues = report.issues.filter((i) => !previousIssueIds.has(i.id));
-  const fixedIssues = previousReport.issues.filter(
-    (i) => !currentIssueIds.has(i.id),
-  );
+  const fixedIssues = previousReport.issues.filter((i) => !currentIssueIds.has(i.id));
 
   // 6. Build summary
   const scoreDelta = report.healthScore - previousReport.healthScore;
@@ -144,9 +139,7 @@ export async function runIncrementalAnalysis(
  * @param projectPath  Absolute path to the project root.
  * @returns Summary of changes, or null if no previous report exists.
  */
-export async function getChangesSummary(
-  projectPath: string,
-): Promise<{
+export async function getChangesSummary(projectPath: string): Promise<{
   changedFiles: string[];
   timeSinceLastRun: string;
   previousScore: number;
@@ -154,10 +147,7 @@ export async function getChangesSummary(
   const previousReport = await getLatestReport(projectPath);
   if (!previousReport) return null;
 
-  const changedFiles = await findChangedFiles(
-    projectPath,
-    previousReport.timestamp,
-  );
+  const changedFiles = await findChangedFiles(projectPath, previousReport.timestamp);
 
   const lastRunTime = new Date(previousReport.timestamp);
   const now = new Date();
@@ -184,9 +174,7 @@ export async function getChangesSummary(
 /**
  * Finds the most recent diagnosis report saved to disk.
  */
-async function getLatestReport(
-  projectPath: string,
-): Promise<DiagnosisReport | null> {
+async function getLatestReport(projectPath: string): Promise<DiagnosisReport | null> {
   const reportsDir = join(projectPath, STATE_DIR, REPORTS_DIR);
 
   try {
@@ -203,7 +191,8 @@ async function getLatestReport(
     const latestFile = reportFiles[reportFiles.length - 1];
 
     return readJsonSafe<DiagnosisReport | null>(latestFile, null);
-  } catch { /* skip: unable to read reports directory */
+  } catch {
+    /* skip: unable to read reports directory */
     return null;
   }
 }
@@ -211,10 +200,7 @@ async function getLatestReport(
 /**
  * Finds files modified since a given ISO timestamp.
  */
-async function findChangedFiles(
-  projectPath: string,
-  sinceTimestamp: string,
-): Promise<string[]> {
+async function findChangedFiles(projectPath: string, sinceTimestamp: string): Promise<string[]> {
   const sinceTime = new Date(sinceTimestamp).getTime();
   const changed: string[] = [];
 
@@ -239,9 +225,13 @@ async function findChangedFiles(
         if (fileStat.mtimeMs > sinceTime) {
           changed.push(filePath);
         }
-      } catch { /* skip: unable to stat file */ }
+      } catch {
+        /* skip: unable to stat file */
+      }
     }
-  } catch { /* skip: glob failure */ }
+  } catch {
+    /* skip: glob failure */
+  }
 
   return changed;
 }

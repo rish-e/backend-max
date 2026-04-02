@@ -2,13 +2,13 @@
 // backend-max — Framework analyzer registry
 // =============================================================================
 
-import type { FrameworkAnalyzer } from "./framework-interface.js";
-import { createNextJSAnalyzer } from "./nextjs.js";
 import { createExpressAnalyzer } from "./express.js";
-import { createTRPCAnalyzer } from "./trpc.js";
-import { createGraphQLAnalyzer } from "./graphql.js";
 import { createFastifyAnalyzer } from "./fastify.js";
+import type { FrameworkAnalyzer } from "./framework-interface.js";
+import { createGraphQLAnalyzer } from "./graphql.js";
 import { createHonoAnalyzer } from "./hono.js";
+import { createNextJSAnalyzer } from "./nextjs.js";
+import { createTRPCAnalyzer } from "./trpc.js";
 
 // ---------------------------------------------------------------------------
 // Registry
@@ -31,9 +31,7 @@ const analyzers: FrameworkAnalyzer[] = [
  * @param projectPath  Absolute path to the project root.
  * @returns The matching FrameworkAnalyzer, or null.
  */
-export async function detectFramework(
-  projectPath: string,
-): Promise<FrameworkAnalyzer | null> {
+export async function detectFramework(projectPath: string): Promise<FrameworkAnalyzer | null> {
   for (const analyzer of analyzers) {
     try {
       const detected = await analyzer.detect(projectPath);

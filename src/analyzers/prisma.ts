@@ -2,17 +2,17 @@
 // backend-max — Prisma schema parser and cross-reference analyzer
 // =============================================================================
 
+import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 import type {
-  PrismaSchemaInfo,
-  PrismaModel,
-  PrismaField,
-  PrismaEnum,
   DatabaseCall,
-  PrismaIssue,
   MigrationIssue,
+  PrismaEnum,
+  PrismaField,
+  PrismaIssue,
+  PrismaModel,
+  PrismaSchemaInfo,
 } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -20,11 +20,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Possible locations for the Prisma schema file. */
-const SCHEMA_LOCATIONS = [
-  "prisma/schema.prisma",
-  "src/prisma/schema.prisma",
-  "schema.prisma",
-];
+const SCHEMA_LOCATIONS = ["prisma/schema.prisma", "src/prisma/schema.prisma", "schema.prisma"];
 
 /**
  * Finds the Prisma schema file in a project directory.
@@ -55,9 +51,7 @@ function findSchemaFile(projectPath: string): string | null {
  * @param projectPath  Absolute path to the project root.
  * @returns            Parsed PrismaSchemaInfo, or null if no schema file is found.
  */
-export async function parsePrismaSchema(
-  projectPath: string,
-): Promise<PrismaSchemaInfo | null> {
+export async function parsePrismaSchema(projectPath: string): Promise<PrismaSchemaInfo | null> {
   const schemaPath = findSchemaFile(projectPath);
   if (!schemaPath) {
     return null;
@@ -66,7 +60,8 @@ export async function parsePrismaSchema(
   let content: string;
   try {
     content = await readFile(schemaPath, "utf-8");
-  } catch { /* skip: unreadable schema file */
+  } catch {
+    /* skip: unreadable schema file */
     return null;
   }
 
@@ -125,9 +120,7 @@ function parseFields(body: string): PrismaField[] {
     }
 
     // A field line must start with an identifier, followed by a type
-    const fieldMatch = line.match(
-      /^(\w+)\s+([\w]+)(\[\])?\s*(\?)?\s*(.*)?$/,
-    );
+    const fieldMatch = line.match(/^(\w+)\s+([\w]+)(\[\])?\s*(\?)?\s*(.*)?$/);
     if (!fieldMatch) {
       continue;
     }
@@ -158,7 +151,7 @@ function parseFields(body: string): PrismaField[] {
 function parseDirective(body: string, directive: string): string[][] {
   const results: string[][] = [];
   // Escape the @ signs for regex
-  const escaped = directive.replace(/@/g, "@@").replace(/@@@@/g, "@@");
+  const _escaped = directive.replace(/@/g, "@@").replace(/@@@@/g, "@@");
   const regex = new RegExp(
     `${directive.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\(\\s*\\[([^\\]]+)\\]`,
     "g",
@@ -284,9 +277,7 @@ export function crossReferenceCalls(
     if (field && (field.isId || field.isUnique)) continue;
 
     const isIndexed = model.indexes.some((idx) => idx.includes(fieldName));
-    const isUnique = model.uniqueConstraints.some((uc) =>
-      uc.includes(fieldName),
-    );
+    const isUnique = model.uniqueConstraints.some((uc) => uc.includes(fieldName));
 
     if (!isIndexed && !isUnique) {
       issues.push({
@@ -319,9 +310,7 @@ export function crossReferenceCalls(
  * @param projectPath  Absolute path to the project root.
  * @returns            Array of MigrationIssue objects.
  */
-export async function detectMigrationDrift(
-  projectPath: string,
-): Promise<MigrationIssue[]> {
+export async function detectMigrationDrift(projectPath: string): Promise<MigrationIssue[]> {
   const issues: MigrationIssue[] = [];
   const migrationsDir = join(projectPath, "prisma", "migrations");
 
@@ -347,7 +336,8 @@ export async function detectMigrationDrift(
       .filter((e) => e.isDirectory() && /^\d{14}/.test(e.name))
       .map((e) => e.name)
       .sort();
-  } catch { /* skip: unable to read migrations directory */
+  } catch {
+    /* skip: unable to read migrations directory */
     return issues;
   }
 
@@ -393,7 +383,9 @@ export async function detectMigrationDrift(
         description: `Last migration (${lastMigrationName}) is ${daysSinceLastMigration} days old and schema has been modified since. This may indicate forgotten migrations.`,
       });
     }
-  } catch { /* skip: unable to stat schema file */ }
+  } catch {
+    /* skip: unable to stat schema file */
+  }
 
   return issues;
 }
@@ -412,7 +404,7 @@ function parseMigrationTimestamp(ts: string): Date | null {
   const second = parseInt(ts.slice(12, 14), 10);
 
   const date = new Date(year, month, day, hour, minute, second);
-  if (isNaN(date.getTime())) return null;
+  if (Number.isNaN(date.getTime())) return null;
 
   return date;
 }

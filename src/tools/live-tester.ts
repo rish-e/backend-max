@@ -2,13 +2,8 @@
 // backend-max — Live endpoint testing (optional, GET-only in v1)
 // =============================================================================
 
+import type { EndpointTestResult, LiveTestOptions, LiveTestResult, RouteInfo } from "../types.js";
 import { scanRoutes } from "./route-scanner.js";
-import type { RouteInfo } from "../types.js";
-import type {
-  LiveTestOptions,
-  LiveTestResult,
-  EndpointTestResult,
-} from "../types.js";
 
 /** Methods considered safe for automated testing (read-only). */
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -94,18 +89,15 @@ export async function runLiveTests(
   projectPath: string,
   options: LiveTestOptions,
 ): Promise<LiveTestResult> {
-  const {
-    baseUrl,
-    timeout = 5000,
-    includeAuth = false,
-    dryRun = false,
-  } = options;
+  const { baseUrl, timeout = 5000, includeAuth = false, dryRun = false } = options;
 
   // Safety: require confirmation for non-local URLs
   if (!isLocalUrl(baseUrl)) {
     return {
       tested: [],
-      skipped: ["All endpoints skipped — baseUrl is not localhost. Live testing only supports local URLs for safety."],
+      skipped: [
+        "All endpoints skipped — baseUrl is not localhost. Live testing only supports local URLs for safety.",
+      ],
       summary: { total: 0, passed: 0, failed: 0, errors: 0 },
     };
   }
@@ -139,7 +131,9 @@ export async function runLiveTests(
 
       // Skip non-safe methods (POST/PUT/PATCH) — can't generate payloads in v1
       if (!SAFE_METHODS.has(method)) {
-        skipped.push(`${endpointLabel} — ${method} endpoints are skipped in v1 (no safe payload generation)`);
+        skipped.push(
+          `${endpointLabel} — ${method} endpoints are skipped in v1 (no safe payload generation)`,
+        );
         continue;
       }
 

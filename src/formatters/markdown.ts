@@ -16,11 +16,7 @@ export function formatMarkdownReport(report: DiagnosisReport): string {
 
   // Health score badge
   const badgeColor =
-    report.healthScore >= 80
-      ? "brightgreen"
-      : report.healthScore >= 60
-        ? "yellow"
-        : "red";
+    report.healthScore >= 80 ? "brightgreen" : report.healthScore >= 60 ? "yellow" : "red";
   lines.push(
     `![Health Score](https://img.shields.io/badge/health--score-${report.healthScore}%2F100-${badgeColor})`,
   );
@@ -30,16 +26,12 @@ export function formatMarkdownReport(report: DiagnosisReport): string {
   lines.push("# Backend Max Diagnosis Report");
   lines.push("");
   lines.push(`**Framework:** ${report.context.framework}`);
-  lines.push(
-    `**Routes:** ${report.routeCount} files, ${report.endpointCount} endpoints`,
-  );
+  lines.push(`**Routes:** ${report.routeCount} files, ${report.endpointCount} endpoints`);
   lines.push(`**Timestamp:** ${report.timestamp}`);
   lines.push("");
 
   // Issues by severity
-  const critical = report.issues.filter(
-    (i) => i.severity === "critical" || i.severity === "bug",
-  );
+  const critical = report.issues.filter((i) => i.severity === "critical" || i.severity === "bug");
   const warnings = report.issues.filter((i) => i.severity === "warning");
   const info = report.issues.filter((i) => i.severity === "info");
 
@@ -110,9 +102,7 @@ export function formatMarkdownReport(report: DiagnosisReport): string {
  * Formats a single issue as a collapsible Markdown details block.
  */
 function formatIssueMarkdown(issue: Issue): string {
-  const location = issue.line
-    ? `\`${issue.file}:${issue.line}\``
-    : `\`${issue.file}\``;
+  const location = issue.line ? `\`${issue.file}:${issue.line}\`` : `\`${issue.file}\``;
 
   return [
     `<details>`,

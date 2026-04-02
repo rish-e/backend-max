@@ -2,12 +2,12 @@
 // backend-max — Living API documentation generator
 // =============================================================================
 
-import { join } from "node:path";
-import type { RouteInfo, MethodInfo, ScanResult, ApiGraph, ApiEdge } from "../types.js";
-import { scanRoutes } from "./route-scanner.js";
-import { buildApiGraph } from "./api-graph.js";
-import { ensureDir, writeJson, getTimestamp, relativePath } from "../utils/helpers.js";
 import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import type { ApiGraph, MethodInfo, RouteInfo, ScanResult } from "../types.js";
+import { ensureDir, getTimestamp, relativePath, writeJson } from "../utils/helpers.js";
+import { buildApiGraph } from "./api-graph.js";
+import { scanRoutes } from "./route-scanner.js";
 
 /** Directory where backend-max stores its state. */
 const STATE_DIR = ".backend-doctor";
@@ -53,9 +53,7 @@ function methodSection(
   graph?: ApiGraph,
 ): string {
   const relFile = relativePath(projectPath, route.filePath);
-  const dbCalls = method.databaseCalls.length > 0
-    ? method.databaseCalls.join(", ")
-    : "none";
+  const dbCalls = method.databaseCalls.length > 0 ? method.databaseCalls.join(", ") : "none";
 
   const lines = [
     `### ${method.method} ${route.url}`,
@@ -211,12 +209,8 @@ export function generateChangelog(
   previousRoutes: ScanResult | RouteInfo[],
   currentRoutes: ScanResult | RouteInfo[],
 ): string {
-  const prev = Array.isArray(previousRoutes)
-    ? previousRoutes
-    : previousRoutes.routes;
-  const curr = Array.isArray(currentRoutes)
-    ? currentRoutes
-    : currentRoutes.routes;
+  const prev = Array.isArray(previousRoutes) ? previousRoutes : previousRoutes.routes;
+  const curr = Array.isArray(currentRoutes) ? currentRoutes : currentRoutes.routes;
 
   // Build lookup maps: "METHOD /url" -> RouteInfo
   const prevMap = new Map<string, RouteInfo>();
@@ -299,11 +293,11 @@ export function generateChangelog(
 
   // Save changelog (fire-and-forget write — this is a sync return)
   const changelogPath = join(projectPath, STATE_DIR, DOCS_DIR, "changelog.md");
-  ensureDir(join(projectPath, STATE_DIR, DOCS_DIR)).then(() =>
-    writeFile(changelogPath, markdown, "utf-8"),
-  ).catch(() => {
-    // Non-critical — don't blow up if we can't write
-  });
+  ensureDir(join(projectPath, STATE_DIR, DOCS_DIR))
+    .then(() => writeFile(changelogPath, markdown, "utf-8"))
+    .catch(() => {
+      // Non-critical — don't blow up if we can't write
+    });
 
   return markdown;
 }

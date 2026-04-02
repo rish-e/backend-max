@@ -21,13 +21,7 @@ const ROUTE_PATTERNS = [
   "src/pages/api/**/*.{ts,tsx,js,jsx}",
 ];
 
-const IGNORE_DIRS = [
-  "node_modules/**",
-  ".next/**",
-  "dist/**",
-  "build/**",
-  ".git/**",
-];
+const IGNORE_DIRS = ["node_modules/**", ".next/**", "dist/**", "build/**", ".git/**"];
 
 const MIDDLEWARE_FILES = [
   "middleware.ts",
@@ -102,8 +96,8 @@ export async function auditSecurity(projectPath: string): Promise<{
               `No auth protection: ${routeUrl}`,
               `Route ${routeUrl} (${relPath}) is not covered by auth middleware and contains no inline authentication checks. If this route requires authentication, add protection.`,
               filePath,
-              null
-            )
+              null,
+            ),
           );
         }
       }
@@ -125,8 +119,8 @@ export async function auditSecurity(projectPath: string): Promise<{
             `No input validation: ${routeUrl}`,
             `Route ${routeUrl} (${relPath}) accesses the request body without schema validation (Zod, Yup, Joi, etc.). Raw user input should always be validated.`,
             filePath,
-            findLineNumber(content, /req(?:uest)?\.(?:body|json\(\))|await\s+request\.json\(\)/)
-          )
+            findLineNumber(content, /req(?:uest)?\.(?:body|json\(\))|await\s+request\.json\(\)/),
+          ),
         );
       } else {
         // No body access -- still counts as "validated" (no input to validate)
@@ -142,11 +136,7 @@ export async function auditSecurity(projectPath: string): Promise<{
     // -----------------------------------------------------------------------
     // 2. CORS configuration
     // -----------------------------------------------------------------------
-    corsConfigured = await checkCorsConfiguration(
-      projectPath,
-      routeContents,
-      issues
-    );
+    corsConfigured = await checkCorsConfiguration(projectPath, routeContents, issues);
 
     // -----------------------------------------------------------------------
     // 5. Rate limiting on auth endpoints
@@ -156,12 +146,9 @@ export async function auditSecurity(projectPath: string): Promise<{
     // -----------------------------------------------------------------------
     // Summary
     // -----------------------------------------------------------------------
-    const authCoverage =
-      totalRoutes > 0 ? Math.round((routesWithAuth / totalRoutes) * 100) : 100;
+    const authCoverage = totalRoutes > 0 ? Math.round((routesWithAuth / totalRoutes) * 100) : 100;
     const validationCoverage =
-      totalRoutes > 0
-        ? Math.round((routesWithValidation / totalRoutes) * 100)
-        : 100;
+      totalRoutes > 0 ? Math.round((routesWithValidation / totalRoutes) * 100) : 100;
 
     return {
       issues,
@@ -181,7 +168,7 @@ export async function auditSecurity(projectPath: string): Promise<{
           "Security auditor encountered an internal error",
           `The security auditor failed: ${error instanceof Error ? error.message : String(error)}`,
           projectPath,
-          null
+          null,
         ),
       ],
       summary: {
@@ -200,9 +187,7 @@ export async function auditSecurity(projectPath: string): Promise<{
 /**
  * Parse the Next.js middleware.ts file to extract route matcher patterns.
  */
-async function parseMiddlewareMatchers(
-  projectPath: string
-): Promise<string[]> {
+async function parseMiddlewareMatchers(projectPath: string): Promise<string[]> {
   for (const mwFile of MIDDLEWARE_FILES) {
     const mwPath = join(projectPath, mwFile);
     let content: string;
@@ -240,10 +225,7 @@ async function parseMiddlewareMatchers(
 /**
  * Check if a route URL is covered by any middleware matcher pattern.
  */
-function isRouteCoveredByMiddleware(
-  routeUrl: string,
-  matchers: string[]
-): boolean {
+function isRouteCoveredByMiddleware(routeUrl: string, matchers: string[]): boolean {
   for (const matcher of matchers) {
     // Convert Next.js matcher to regex.
     const regexStr = matcher
@@ -343,19 +325,19 @@ function checkBodyAccess(content: string): boolean {
 
 function checkSchemaValidation(content: string): boolean {
   const validationPatterns = [
-    /\.parse\(/,        // Zod
-    /\.safeParse\(/,    // Zod
-    /\.validate\(/,     // Yup / Joi
+    /\.parse\(/, // Zod
+    /\.safeParse\(/, // Zod
+    /\.validate\(/, // Yup / Joi
     /\.validateAsync\(/, // Joi
     /createValidator/,
     /withValidation/,
     /zodResolver/,
-    /z\.object/,        // Zod schema definition
-    /yup\.object/,      // Yup schema definition
-    /Joi\.object/,      // Joi schema definition
-    /ajv/i,             // AJV validator
+    /z\.object/, // Zod schema definition
+    /yup\.object/, // Yup schema definition
+    /Joi\.object/, // Joi schema definition
+    /ajv/i, // AJV validator
     /class-validator/,
-    /typebox/i,         // TypeBox
+    /typebox/i, // TypeBox
   ];
   return validationPatterns.some((pattern) => pattern.test(content));
 }
@@ -369,7 +351,7 @@ function checkVulnerabilityPatterns(
   filePath: string,
   relPath: string,
   routeUrl: string,
-  issues: Issue[]
+  issues: Issue[],
 ): void {
   // SQL string concatenation (potential injection).
   const sqlConcatPatterns = [
@@ -388,18 +370,15 @@ function checkVulnerabilityPatterns(
           `Potential SQL injection: ${routeUrl}`,
           `Route ${routeUrl} (${relPath}) appears to use string concatenation in SQL queries. Use parameterised queries or an ORM to prevent SQL injection.`,
           filePath,
-          findLineNumber(content, pattern)
-        )
+          findLineNumber(content, pattern),
+        ),
       );
       break; // one issue per file
     }
   }
 
   // Exposed error details in production.
-  const errorDetailPatterns = [
-    /error\.(message|stack)/,
-    /err\.(message|stack)/,
-  ];
+  const errorDetailPatterns = [/error\.(message|stack)/, /err\.(message|stack)/];
 
   for (const pattern of errorDetailPatterns) {
     const matches = content.match(pattern);
@@ -418,8 +397,8 @@ function checkVulnerabilityPatterns(
             `Exposed error details: ${routeUrl}`,
             `Route ${routeUrl} (${relPath}) may expose internal error details (${matches[0]}) in responses without checking NODE_ENV. Sanitise error messages in production.`,
             filePath,
-            findLineNumber(content, pattern)
-          )
+            findLineNumber(content, pattern),
+          ),
         );
         break; // one issue per file
       }
@@ -434,16 +413,12 @@ function checkVulnerabilityPatterns(
 async function checkCorsConfiguration(
   projectPath: string,
   routeContents: Map<string, string>,
-  issues: Issue[]
+  issues: Issue[],
 ): Promise<boolean> {
   let corsFound = false;
 
   // Check next.config for headers.
-  const nextConfigFiles = [
-    "next.config.js",
-    "next.config.mjs",
-    "next.config.ts",
-  ];
+  const nextConfigFiles = ["next.config.js", "next.config.mjs", "next.config.ts"];
   for (const configFile of nextConfigFiles) {
     try {
       const content = await readFile(join(projectPath, configFile), "utf-8");
@@ -460,8 +435,8 @@ async function checkCorsConfiguration(
                 "Wildcard CORS in config",
                 `${configFile} sets Access-Control-Allow-Origin to "*" without a development-only guard. Restrict CORS to specific origins in production.`,
                 join(projectPath, configFile),
-                null
-              )
+                null,
+              ),
             );
           }
         }
@@ -486,8 +461,8 @@ async function checkCorsConfiguration(
               `Wildcard CORS in ${relPath}`,
               `${relPath} sets Access-Control-Allow-Origin to "*" without a development-only guard. Restrict CORS in production.`,
               filePath,
-              findLineNumber(content, /Access-Control-Allow-Origin/)
-            )
+              findLineNumber(content, /Access-Control-Allow-Origin/),
+            ),
           );
         }
       }
@@ -504,7 +479,7 @@ async function checkCorsConfiguration(
 async function checkRateLimiting(
   _projectPath: string,
   routeContents: Map<string, string>,
-  issues: Issue[]
+  issues: Issue[],
 ): Promise<void> {
   const authRoutePatterns = [
     /\/api\/auth/,
@@ -542,8 +517,8 @@ async function checkRateLimiting(
           `No rate limiting on auth endpoint: ${routeUrl}`,
           `Auth endpoint ${filePath} does not appear to implement rate limiting. Auth endpoints are prime targets for brute-force attacks.`,
           filePath,
-          null
-        )
+          null,
+        ),
       );
     }
   }
@@ -553,10 +528,7 @@ async function checkRateLimiting(
 // File & path helpers
 // ---------------------------------------------------------------------------
 
-async function discoverFiles(
-  projectPath: string,
-  patterns: string[]
-): Promise<string[]> {
+async function discoverFiles(projectPath: string, patterns: string[]): Promise<string[]> {
   const files: string[] = [];
   for (const pattern of patterns) {
     const matches = await glob(pattern, {
@@ -571,9 +543,7 @@ async function discoverFiles(
   return [...new Set(files)];
 }
 
-async function readFiles(
-  filePaths: string[]
-): Promise<Map<string, string>> {
+async function readFiles(filePaths: string[]): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   for (const fp of filePaths) {
     try {
@@ -614,7 +584,7 @@ function makeIssue(
   title: string,
   description: string,
   file: string,
-  line: number | null
+  line: number | null,
 ): Issue {
   return {
     id,

@@ -2,28 +2,13 @@
 // backend-max — Core TypeScript analysis utilities (ts-morph)
 // =============================================================================
 
-import {
-  Project,
-  SourceFile,
-  SyntaxKind,
-  Node,
-  FunctionDeclaration,
-  ts,
-} from "ts-morph";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { type FunctionDeclaration, Node, Project, type SourceFile, SyntaxKind, ts } from "ts-morph";
 import type { MethodInfo } from "../types.js";
 
 /** HTTP methods that Next.js route handlers can export. */
-const HTTP_METHODS = [
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "PATCH",
-  "HEAD",
-  "OPTIONS",
-] as const;
+const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
 
 // ---------------------------------------------------------------------------
 // Project creation
@@ -106,12 +91,7 @@ export function extractExportedMethods(sourceFile: SourceFile): MethodInfo[] {
         if (!initializer) continue;
 
         methods.push(
-          buildMethodInfo(
-            httpMethod,
-            initializer,
-            initializer,
-            decl.getStartLineNumber(),
-          ),
+          buildMethodInfo(httpMethod, initializer, initializer, decl.getStartLineNumber()),
         );
       }
     }
@@ -198,8 +178,7 @@ export function detectDatabaseCalls(node: Node): string[] {
   const drizzleRegex = /db\.(select|insert|update|delete|query)\b/g;
 
   // Generic SQL/ORM patterns
-  const genericRegex =
-    /(?:knex|kysely|typeorm|sequelize|mongoose)\b[^;]*/gi;
+  const genericRegex = /(?:knex|kysely|typeorm|sequelize|mongoose)\b[^;]*/gi;
 
   for (const regex of [prismaRegex, prismaRawRegex, drizzleRegex, genericRegex]) {
     let match: RegExpExecArray | null;

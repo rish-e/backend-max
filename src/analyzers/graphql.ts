@@ -5,16 +5,16 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { glob } from "glob";
-import type { RouteInfo, MethodInfo, Issue } from "../types.js";
+import { Node, type Project, type SourceFile, SyntaxKind } from "ts-morph";
+import type { Issue, MethodInfo, RouteInfo } from "../types.js";
 import type { FrameworkAnalyzer, FrameworkCheck } from "./framework-interface.js";
 import {
   createProject,
-  detectValidation,
-  detectErrorHandling,
-  detectDatabaseCalls,
   detectAuthPatterns,
+  detectDatabaseCalls,
+  detectErrorHandling,
+  detectValidation,
 } from "./typescript.js";
-import { Node, SyntaxKind, type SourceFile, type Project } from "ts-morph";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,7 +48,7 @@ const RESOLVER_PATTERNS = [
 ];
 
 /** Pattern for DataLoader usage (N+1 prevention). */
-const DATALOADER_REGEX = /DataLoader|dataloader|\.load\s*\(|\.loadMany\s*\(/i;
+const _DATALOADER_REGEX = /DataLoader|dataloader|\.load\s*\(|\.loadMany\s*\(/i;
 
 // ---------------------------------------------------------------------------
 // GraphQL Analyzer
@@ -77,7 +77,8 @@ async function detect(projectPath: string): Promise<boolean> {
     const devDeps = (pkg.devDependencies ?? {}) as Record<string, string>;
     const allDeps = { ...deps, ...devDeps };
     return GRAPHQL_PACKAGES.some((p) => p in allDeps);
-  } catch { /* skip: unreadable/unparseable package.json */
+  } catch {
+    /* skip: unreadable/unparseable package.json */
     return false;
   }
 }
@@ -113,7 +114,9 @@ async function scanGraphQLRoutes(projectPath: string): Promise<RouteInfo[]> {
       if (RESOLVER_PATTERNS.some((p) => p.test(content))) {
         resolverFiles.push({ filePath, content });
       }
-    } catch { /* skip: unreadable file */ }
+    } catch {
+      /* skip: unreadable file */
+    }
   }
 
   if (resolverFiles.length === 0) {
@@ -127,7 +130,9 @@ async function scanGraphQLRoutes(projectPath: string): Promise<RouteInfo[]> {
     try {
       const routes = analyzeGraphQLFile(filePath, content, project);
       allRoutes.push(...routes);
-    } catch { /* skip: unreadable/unparseable file */ }
+    } catch {
+      /* skip: unreadable/unparseable file */
+    }
   }
 
   allRoutes.sort((a, b) => a.url.localeCompare(b.url));
@@ -141,15 +146,12 @@ async function scanGraphQLRoutes(projectPath: string): Promise<RouteInfo[]> {
 /**
  * Analyzes a single file for GraphQL resolver definitions.
  */
-function analyzeGraphQLFile(
-  filePath: string,
-  content: string,
-  project: Project,
-): RouteInfo[] {
+function analyzeGraphQLFile(filePath: string, content: string, project: Project): RouteInfo[] {
   let sourceFile: SourceFile;
   try {
     sourceFile = project.addSourceFileAtPath(filePath);
-  } catch { /* skip: unreadable/unparseable file */
+  } catch {
+    /* skip: unreadable/unparseable file */
     return [];
   }
 
@@ -170,14 +172,22 @@ function analyzeGraphQLFile(
 
       const methodInfo: MethodInfo = {
         method: httpMethod,
-        hasValidation: resolverNode ? detectValidation(resolverNode) : /\.parse\s*\(|z\.\w+|zod|yup\.|joi\./i.test(resolver.bodyText),
-        hasErrorHandling: resolverNode ? detectErrorHandling(resolverNode) : /try\s*\{/.test(resolver.bodyText),
+        hasValidation: resolverNode
+          ? detectValidation(resolverNode)
+          : /\.parse\s*\(|z\.\w+|zod|yup\.|joi\./i.test(resolver.bodyText),
+        hasErrorHandling: resolverNode
+          ? detectErrorHandling(resolverNode)
+          : /try\s*\{/.test(resolver.bodyText),
         hasDatabaseCalls: resolverNode
           ? detectDatabaseCalls(resolverNode).length > 0
           : /prisma\.|db\.|knex|kysely|typeorm|sequelize|mongoose/i.test(resolver.bodyText),
-        hasAuth: resolverNode ? detectAuthPatterns(resolverNode) : PROTECTED_RESOLVER_REGEX.test(resolver.bodyText),
+        hasAuth: resolverNode
+          ? detectAuthPatterns(resolverNode)
+          : PROTECTED_RESOLVER_REGEX.test(resolver.bodyText),
         returnType: null,
-        databaseCalls: resolverNode ? detectDatabaseCalls(resolverNode) : extractDbCallsFromText(resolver.bodyText),
+        databaseCalls: resolverNode
+          ? detectDatabaseCalls(resolverNode)
+          : extractDbCallsFromText(resolver.bodyText),
         lineNumber: resolver.line,
       };
 
@@ -249,7 +259,10 @@ function extractResolverSections(content: string): ResolverSection[] {
       if (sectionEnd === -1) continue;
 
       const sectionContent = content.slice(startIdx, sectionEnd);
-      const resolvers = extractResolversFromSection(sectionContent, content.slice(0, startIdx).split("\n").length);
+      const resolvers = extractResolversFromSection(
+        sectionContent,
+        content.slice(0, startIdx).split("\n").length,
+      );
 
       sections.push({ type, resolvers });
     }
@@ -285,14 +298,18 @@ function extractResolversFromSection(
   // Match patterns like: resolverName: async (parent, args, context) => { ... }
   // or: resolverName(parent, args, context) { ... }
   // or: async resolverName(parent, args, context) { ... }
-  const resolverRegex =
-    /(?:async\s+)?(\w+)\s*(?::\s*(?:async\s*)?\(|[\(])/g;
+  const resolverRegex = /(?:async\s+)?(\w+)\s*(?::\s*(?:async\s*)?\(|[(])/g;
 
   let match: RegExpExecArray | null;
   while ((match = resolverRegex.exec(sectionContent)) !== null) {
     const name = match[1];
     // Skip common non-resolver names
-    if (["async", "function", "return", "const", "let", "var", "if", "else", "try", "catch"].includes(name)) continue;
+    if (
+      ["async", "function", "return", "const", "let", "var", "if", "else", "try", "catch"].includes(
+        name,
+      )
+    )
+      continue;
 
     const lineOffset = sectionContent.slice(0, match.index).split("\n").length - 1;
     const startIdx = match.index;
@@ -346,9 +363,9 @@ function extractDecoratorResolvers(sourceFile: SourceFile): DecoratorResolver[] 
 
       if (!type) continue;
 
-      const hasAuth = decorators.some(
-        (d) => d.getName() === "Authorized" || d.getName() === "UseGuards",
-      ) || detectAuthPatterns(method);
+      const hasAuth =
+        decorators.some((d) => d.getName() === "Authorized" || d.getName() === "UseGuards") ||
+        detectAuthPatterns(method);
 
       resolvers.push({
         name: method.getName(),
@@ -373,9 +390,7 @@ function findResolverNode(
   sectionType: string,
   resolverName: string,
 ): Node | null {
-  const properties = sourceFile.getDescendantsOfKind(
-    SyntaxKind.PropertyAssignment,
-  );
+  const properties = sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAssignment);
 
   for (const prop of properties) {
     if (prop.getName() === resolverName) {
@@ -449,17 +464,13 @@ function getFrameworkChecks(): FrameworkCheck[] {
     {
       id: "graphql-missing-input-validation",
       name: "Mutation without input validation",
-      description:
-        "GraphQL mutations should validate their input arguments before processing.",
+      description: "GraphQL mutations should validate their input arguments before processing.",
       check: checkMissingInputValidation,
     },
   ];
 }
 
-async function checkNPlusOne(
-  projectPath: string,
-  routes: RouteInfo[],
-): Promise<Issue[]> {
+async function checkNPlusOne(projectPath: string, routes: RouteInfo[]): Promise<Issue[]> {
   const issues: Issue[] = [];
   const timestamp = new Date().toISOString();
 
@@ -468,9 +479,14 @@ async function checkNPlusOne(
   try {
     const raw = await readFile(join(projectPath, "package.json"), "utf-8");
     const pkg = JSON.parse(raw) as Record<string, unknown>;
-    const deps = { ...(pkg.dependencies as Record<string, string> ?? {}), ...(pkg.devDependencies as Record<string, string> ?? {}) };
+    const deps = {
+      ...((pkg.dependencies as Record<string, string>) ?? {}),
+      ...((pkg.devDependencies as Record<string, string>) ?? {}),
+    };
     hasDataLoader = "dataloader" in deps;
-  } catch { /* skip: unreadable/unparseable package.json */ }
+  } catch {
+    /* skip: unreadable/unparseable package.json */
+  }
 
   for (const route of routes) {
     if (!route.url.startsWith("/graphql/")) continue;
@@ -478,8 +494,8 @@ async function checkNPlusOne(
     for (const method of route.methods) {
       if (method.hasDatabaseCalls && !hasDataLoader) {
         // Check if any database call looks like a related-data fetch
-        const hasRelatedFetch = method.databaseCalls.some(
-          (call) => /find(?:Many|First|Unique)|select|where/i.test(call),
+        const hasRelatedFetch = method.databaseCalls.some((call) =>
+          /find(?:Many|First|Unique)|select|where/i.test(call),
         );
         if (hasRelatedFetch) {
           issues.push({
